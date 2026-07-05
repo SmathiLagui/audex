@@ -15,7 +15,7 @@ Indexes a music folder into SQLite and exports the database as a single JSON fil
 
 ## Toolchain
 
-Managed by mise — no manual installs needed beyond mise itself.
+Managed by mise - no manual installs needed beyond mise itself.
 
 | Tool   | Version | Purpose                       |
 | ------ | ------- | ----------------------------- |

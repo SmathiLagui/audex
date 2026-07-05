@@ -100,6 +100,34 @@ class TestTrackOrdering:
         ]
         assert ordered_numbers == [1, 2, 3]
 
+    def test_cover_path_in_export(
+        self,
+        db: sqlite3.Connection,
+        covers_dir: Path,
+        music_folder: Path,
+        tmp_path: Path,
+        progress: MagicMock,
+        mocker: MockerFixture,
+    ) -> None:
+        """Albums with embedded art must expose
+        an absolute cover path in JSON."""
+        cover_bytes = b'\xff\xd8\xff' + b'\xaa' * 97
+        f = _file(music_folder, 'track.mp3')
+        tag_map = {
+            str(f): _tags(f, cover_bytes=cover_bytes, cover_format='jpg'),
+        }
+        _patch_io(mocker, tag_map)
+        scan_folder(music_folder, db, covers_dir, progress)
+
+        out = export_library(db, tmp_path, covers_dir)
+        data = json.loads(out.read_text(encoding='utf-8'))
+
+        album = data['albums'][0]
+        assert album['cover'] is not None
+        cover_path = album['cover']
+        assert cover_path.endswith('.jpg')
+        assert covers_dir.name in cover_path
+
     def test_null_track_numbers_sort_after_numbered(
         self,
         db: sqlite3.Connection,

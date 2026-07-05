@@ -2,7 +2,7 @@
 
 ## Project context
 
-A Windows-only Python library embedded in a Tauri desktop app (Angular frontend, Rust backend). The Python side has two responsibilities: index a music folder into SQLite, and export the database as a single JSON blob consumed by the frontend. There is no background daemon, no file watcher. Both operations are explicitly user-triggered via a CLI (dev convenience only — the Rust port will embed the logic directly).
+A Windows-only Python library embedded in a Tauri desktop app (Angular frontend, Rust backend). The Python side has two responsibilities: index a music folder into SQLite, and export the database as a single JSON blob consumed by the frontend. There is no background daemon, no file watcher. Both operations are explicitly user-triggered via a CLI (dev convenience only - the Rust port will embed the logic directly).
 
 > For the ease of developpement, the scan and export to json process are different. scan must ask for a folder and export always goes to `%APPDATA%\ng-player\export.json`
 ---
@@ -141,14 +141,16 @@ The frontend loads this once into memory and never queries SQLite again. All ent
 
 ---
 
-## What the implementation must figure out
+## Decisions taken
 
-1. **What to store in `file_states`** and how to use it to detect changes on refresh - both for the common case (stat changes) and the hard case (tag edit with preserved mtime+size).
+> Full details in [IMPLEMENTATION.md](IMPLEMENTATION.md).
 
-2. **How to structure the refresh pipeline** so it is correct (detects all changes) and fast on HDD (avoids random-access I/O patterns).
+**`file_states` stores `path`, `size_bytes`, and `change_time_ns`.** `change_time_ns` is the NTFS `ChangeTime` retrieved via `GetFileInformationByHandleEx` - a kernel-maintained timestamp that tag editors cannot spoof without administrator rights. File size acts as a fast pre-filter (size change -> definitely changed, skip the ChangeTime call). Files whose size is unchanged are checked by ChangeTime only, which is a metadata-only handle with no data sector reads.
 
-3. **What libraries to use** - the current stack is a starting point, not a constraint. If a better approach requires different or additional libraries, propose them with justification.
+**First index and refresh are two distinct code paths** detected at runtime by counting `file_states` rows (0 -> first index). First index walks and reads everything. Refresh loads known states, categorises paths (new / deleted / size-changed / ChangeTime-changed / unchanged), and reads tags only for the changed set.
 
-4. **Whether first index and refresh share a pipeline** or are better implemented as two distinct paths with different trade-offs.
+**Batch commits every 500 files** during first index give interrupted-scan recovery for free: on the next run, already-committed paths are seen as unchanged by the refresh path.
 
-5. **How to keep the export fast** as the library grows - the full graph serialisation is currently done on every export call.
+**Tag reading uses pytaglib** (primary backend, wraps TagLib) with mutagen as an opt-in alternative (`--backend mutagen`). Both normalise to the same `RawTags` struct. pytaglib is the default because TagLib handles more edge cases and is faster on large batches.
+
+**Export is a single serialise-on-call operation** - four SQL queries, assembled in Python, written as one JSON file. No incremental caching. At library sizes this tool is designed for (~15 000 tracks), the full serialisation takes under a second.

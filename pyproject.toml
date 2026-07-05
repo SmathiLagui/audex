@@ -68,6 +68,10 @@ ignore_missing_imports = true
 module = "audex.tags"
 disallow_untyped_calls = false
 
+[[tool.mypy.overrides]]
+module = "tests.test_tags_readers"
+disallow_untyped_calls = false
+
 [tool.pytest.ini_options]
 strict = true
 testpaths = ["tests"]

@@ -606,6 +606,210 @@ class TestRefreshDeleted:
 
 
 # ---------------------------------------------------------------------------
+# Force re-index
+# ---------------------------------------------------------------------------
+
+
+class TestForceScan:
+    def test_force_wipes_and_reindexes(
+        self,
+        db: sqlite3.Connection,
+        covers_dir: Path,
+        music_folder: Path,
+        progress: MagicMock,
+        mocker: MockerFixture,
+    ) -> None:
+        """--force must delete all existing records
+        then re-index from scratch."""
+        _file(music_folder, 'track1.mp3')
+        _patch_io(mocker)
+
+        stats = scan_folder(music_folder, db, covers_dir, progress)
+        assert stats.new_files == 1
+        first_track_id = db.execute('SELECT id FROM tracks').fetchone()['id']
+
+        # Force re-index: IDs restart from 1
+        stats = scan_folder(music_folder, db, covers_dir, progress, force=True)
+
+        assert stats.new_files == 1
+        assert db.execute('SELECT COUNT(*) FROM tracks').fetchone()[0] == 1
+        assert (
+            db.execute('SELECT COUNT(*) FROM file_states').fetchone()[0] == 1
+        )
+        new_track_id = db.execute('SELECT id FROM tracks').fetchone()['id']
+        assert new_track_id == first_track_id  # IDs reset to 1
+
+    def test_force_removes_cover_files(
+        self,
+        db: sqlite3.Connection,
+        covers_dir: Path,
+        music_folder: Path,
+        progress: MagicMock,
+        mocker: MockerFixture,
+    ) -> None:
+        """--force should delete orphaned cover files from disk."""
+        f = _file(music_folder, 'track.mp3')
+        _, tag_map = _patch_io(mocker)
+        tag_map[str(f)] = _tags(f, cover_bytes=COVER_A, cover_format='jpg')
+
+        scan_folder(music_folder, db, covers_dir, progress)
+        assert len(list(covers_dir.glob('*.jpg'))) == 1
+
+        scan_folder(music_folder, db, covers_dir, progress, force=True)
+
+        assert db.execute('SELECT COUNT(*) FROM covers').fetchone()[0] == 1
+        assert len(list(covers_dir.glob('*.jpg'))) == 1
+
+
+# ---------------------------------------------------------------------------
+# Error handling
+# ---------------------------------------------------------------------------
+
+
+class TestErrorHandling:
+    def test_tag_read_failure_counted_in_first_scan(
+        self,
+        db: sqlite3.Connection,
+        covers_dir: Path,
+        music_folder: Path,
+        progress: MagicMock,
+        mocker: MockerFixture,
+    ) -> None:
+        """A file whose tags cannot
+        be read is counted as an error, not indexed."""
+        good = _file(music_folder, 'good.mp3')
+        _file(music_folder, 'bad.mp3')
+        mocker.patch.object(
+            _scanner_mod, 'get_change_time_ns', return_value=CT1
+        )
+        mocker.patch.object(
+            _tags_mod,
+            'read_tags',
+            side_effect=lambda p, _b=None: (
+                None if Path(p).name == 'bad.mp3' else _tags(Path(p))
+            ),
+        )
+
+        stats = scan_folder(music_folder, db, covers_dir, progress)
+
+        assert stats.errors == 1
+        assert stats.new_files == 1
+        assert db.execute('SELECT COUNT(*) FROM tracks').fetchone()[0] == 1
+        row = db.execute('SELECT path FROM tracks').fetchone()
+        assert row['path'] == str(good)
+
+    def test_change_time_failure_triggers_reread(
+        self,
+        db: sqlite3.Connection,
+        covers_dir: Path,
+        music_folder: Path,
+        progress: MagicMock,
+        mocker: MockerFixture,
+    ) -> None:
+        """If ChangeTime cannot be read, the file is conservatively re-read."""
+        f = _file(music_folder, 'track.mp3')
+        ct_map, tag_map = _patch_io(mocker)
+
+        scan_folder(music_folder, db, covers_dir, progress)
+
+        # ChangeTime check raises on refresh - file should still be re-read
+        tag_map[str(f)] = _tags(f, album_title='Updated Album')
+        mocker.patch.object(
+            _scanner_mod,
+            'get_change_time_ns',
+            side_effect=OSError('access denied'),
+        )
+
+        scan_folder(music_folder, db, covers_dir, progress)
+
+        title = db.execute('SELECT a.title FROM albums a').fetchone()['title']
+        assert title == 'Updated Album'
+
+
+# ---------------------------------------------------------------------------
+# Directory structure
+# ---------------------------------------------------------------------------
+
+
+class TestDirectoryStructure:
+    def test_non_audio_files_ignored(
+        self,
+        db: sqlite3.Connection,
+        covers_dir: Path,
+        music_folder: Path,
+        progress: MagicMock,
+        mocker: MockerFixture,
+    ) -> None:
+        _file(music_folder, 'track.mp3')
+        (music_folder / 'cover.jpg').write_bytes(b'\x00' * 100)
+        (music_folder / 'notes.txt').write_text('liner notes')
+        _patch_io(mocker)
+
+        stats = scan_folder(music_folder, db, covers_dir, progress)
+
+        assert stats.total_files == 1
+        assert db.execute('SELECT COUNT(*) FROM tracks').fetchone()[0] == 1
+
+    def test_subdirectory_scanned(
+        self,
+        db: sqlite3.Connection,
+        covers_dir: Path,
+        music_folder: Path,
+        progress: MagicMock,
+        mocker: MockerFixture,
+    ) -> None:
+        sub = music_folder / 'Artist' / 'Album'
+        sub.mkdir(parents=True)
+        _file(music_folder, 'root.mp3')
+        _file(sub, 'nested.mp3')
+        _patch_io(mocker)
+
+        stats = scan_folder(music_folder, db, covers_dir, progress)
+
+        assert stats.total_files == 2
+        assert db.execute('SELECT COUNT(*) FROM tracks').fetchone()[0] == 2
+
+    def test_non_audio_files_ignored_on_refresh(
+        self,
+        db: sqlite3.Connection,
+        covers_dir: Path,
+        music_folder: Path,
+        progress: MagicMock,
+        mocker: MockerFixture,
+    ) -> None:
+        _file(music_folder, 'track.mp3')
+        (music_folder / 'cover.jpg').write_bytes(b'\x00' * 100)
+        _patch_io(mocker)
+
+        scan_folder(music_folder, db, covers_dir, progress)
+        stats = scan_folder(music_folder, db, covers_dir, progress)
+
+        assert stats.total_files == 1
+        assert stats.skipped_files == 1
+
+    def test_refresh_recurses_subdirectory(
+        self,
+        db: sqlite3.Connection,
+        covers_dir: Path,
+        music_folder: Path,
+        progress: MagicMock,
+        mocker: MockerFixture,
+    ) -> None:
+        """Refresh walk must find files in subdirectories, not just root."""
+        sub = music_folder / 'Artist' / 'Album'
+        sub.mkdir(parents=True)
+        _file(music_folder, 'root.mp3')
+        _file(sub, 'nested.mp3')
+        _patch_io(mocker)
+
+        scan_folder(music_folder, db, covers_dir, progress)
+        stats = scan_folder(music_folder, db, covers_dir, progress)
+
+        assert stats.skipped_files == 2
+        assert stats.total_files == 2
+
+
+# ---------------------------------------------------------------------------
 # Performance
 # ---------------------------------------------------------------------------
 
