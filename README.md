@@ -13,6 +13,19 @@ Indexes a music folder into SQLite and exports the database as a single JSON fil
 
 ---
 
+## Toolchain
+
+Managed by mise — no manual installs needed beyond mise itself.
+
+| Tool   | Version | Purpose                       |
+| ------ | ------- | ----------------------------- |
+| Python | 3.14    | Runtime                       |
+| uv     | 0.11    | Package manager / virtual env |
+
+Pinned in [mise.toml](mise.toml).
+
+---
+
 ## Setup
 
 ```sh
@@ -36,10 +49,10 @@ audex scan <FOLDER>
 
 Options:
 
-| Flag                | Default    | Description                                         |
-| ------------------- | ---------- | --------------------------------------------------- |
-| `--force` / `-f`    | off        | Wipe the existing library and re-index from scratch |
-| `--backend` / `-b`  | `pytaglib` | Tag reading backend: `pytaglib` or `mutagen`        |
+| Flag               | Default    | Description                                         |
+| ------------------ | ---------- | --------------------------------------------------- |
+| `--force` / `-f`   | off        | Wipe the existing library and re-index from scratch |
+| `--backend` / `-b` | `pytaglib` | Tag reading backend: `pytaglib` or `mutagen`        |
 
 On first run, every file is read and indexed (slow - proportional to library size and disk speed).
 On subsequent runs, only changed files are re-processed using NTFS ChangeTime detection.
@@ -49,7 +62,7 @@ On subsequent runs, only changed files are re-processed using NTFS ChangeTime de
 Export the library to JSON for the frontend.
 
 ```sh
-mise  app:export
+mise app:export
 # or directly:
 audex export
 ```
@@ -62,12 +75,12 @@ Requires a prior `scan` run.
 
 ## Data locations
 
-| Path                                              | Contents                                          |
-| ------------------------------------------------- | ------------------------------------------------- |
-| `%APPDATA%\ng-player\library.db`          | SQLite database                                   |
-| `%APPDATA%\ng-player\export.json`         | Frontend payload                                  |
-| `%APPDATA%\ng-player\covers\`             | Content-addressed cover images (`{sha256}.{ext}`) |
-| `%APPDATA%\ng-player\logs\`               | Rotating scan logs (last 9 kept)                  |
+| Path                              | Contents                                          |
+| --------------------------------- | ------------------------------------------------- |
+| `%APPDATA%\ng-player\library.db`  | SQLite database                                   |
+| `%APPDATA%\ng-player\export.json` | Frontend payload                                  |
+| `%APPDATA%\ng-player\covers\`     | Content-addressed cover images (`{sha256}.{ext}`) |
+| `%APPDATA%\ng-player\logs\`       | Rotating scan logs (last 9 kept)                  |
 
 ---
 

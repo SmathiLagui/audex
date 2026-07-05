@@ -2,7 +2,7 @@
 
 ## Project context
 
-A Windows-only Python library embedded in a Tauri desktop app (Angular frontend, Rust backend). The Python side has two responsibilities: index a music folder into SQLite, and export the database as a single JSON blob consumed by the frontend. There is no CLI, no background daemon, no file watcher. Both operations are explicitly user-triggered.
+A Windows-only Python library embedded in a Tauri desktop app (Angular frontend, Rust backend). The Python side has two responsibilities: index a music folder into SQLite, and export the database as a single JSON blob consumed by the frontend. There is no background daemon, no file watcher. Both operations are explicitly user-triggered via a CLI (dev convenience only — the Rust port will embed the logic directly).
 
 > For the ease of developpement, the scan and export to json process are different. scan must ask for a folder and export always goes to `%APPDATA%\ng-player\export.json`
 ---
@@ -36,28 +36,29 @@ A Windows-only Python library embedded in a Tauri desktop app (Angular frontend,
 
 ## What must be extracted from audio files
 
-Each audio file (MP3, FLAC, M4A, OGG, Opus) carries embedded tags. The following must be extracted per file:
+Each audio file (MP3, FLAC, M4A, OGG, Opus, WAV, AAC) carries embedded tags. The following must be extracted per file:
 
 - Title, track number, disc number, duration
 - Track artist (the performer of this specific track)
 - Album artist (the credited artist for the whole album - often different from track artist on compilations or features)
 - Album title, year, genre
 - Embedded cover image (raw bytes + format)
+- Bitrate (kbps) and audio format (uppercase extension string)
 
 Tag reading is the expensive operation. Everything else in the pipeline is cheap by comparison.
 
 ---
 
-## Database schema (to be designed)
+## Database schema
 
-The schema must support the following entities and relationships:
+The schema supports the following entities:
 
 - **Artist** - deduplicated by name. An artist can be an album artist, a track interpreter, or both.
-- **Album** - belongs to one album artist. Has title, year, genre, and optionally a cover.
-- **Track** - belongs to one album. Has its own interpreter (may differ from album artist). Carries the absolute file path.
+- **Album** - belongs to one album artist. Has title, year, genre, cover, and an `is_compilation` flag.
+- **Track** - belongs to one album. Has its own interpreter (may differ from album artist). Carries the absolute file path, bitrate, and audio format.
 - **Genre** - deduplicated by name. One genre per album.
 - **Cover** - deduplicated by content hash. Stored on disk as `{sha256}.{ext}` under `%APPDATA%\ng-player\covers\`. The DB stores the hash and extension; the file is the source of truth.
-- **File state** - a change-detection record per indexed file. Must store whatever signals are needed to detect that a file has been modified since last index without necessarily re-reading its tags. The design of this table is part of the problem to solve.
+- **File state** - stores `path`, `size_bytes`, and `change_time_ns` (NTFS ChangeTime). Used to detect changes without re-reading tags on every run.
 
 ---
 
@@ -67,11 +68,18 @@ The frontend loads this once into memory and never queries SQLite again. All ent
 
 ```json
 {
+  "stats": {
+    "trackCount": 1234,
+    "albumCount": 87,
+    "artistCount": 63,
+    "genreCount": 12,
+    "totalDurationMs": 289340000
+  },
   "artists": [
     {
       "id": 1,
       "name": "Dying Fetus",
-      "album_ids": [4, 5]
+      "albumIds": [4, 5]
     }
   ],
   "albums": [
@@ -79,30 +87,33 @@ The frontend loads this once into memory and never queries SQLite again. All ent
       "id": 4,
       "title": "Make Them Beg for Death",
       "year": 2023,
-      "artist_id": 1,
-      "genre_id": 2,
-      "track_count": 11,
-      "track_ids": [30, 31, 32],
-      "cover": "D:\\Users\\user\\ng-player\\covers\\af64eafe1234abcd.jpg"
+      "artistId": 1,
+      "genreId": 2,
+      "isCompilation": false,
+      "trackCount": 11,
+      "trackIds": [30, 31, 32],
+      "cover": "C:\\Users\\user\\AppData\\Roaming\\ng-player\\covers\\af64eafe1234abcd.jpg"
     }
   ],
   "tracks": [
     {
       "id": 30,
       "title": "Enlighten Through Agony",
-      "artist_id": 1,
-      "album_id": 4,
-      "track_number": 1,
-      "disc_number": 1,
-      "duration_ms": 247000,
-      "path": "D:\\Music\\Dying Fetus\\Make Them Beg for Death\\1 - Enlighten Through Agony.flac"
+      "artistId": 1,
+      "albumId": 4,
+      "trackNumber": 1,
+      "discNumber": 1,
+      "durationMs": 247000,
+      "bitrateKbps": null,
+      "audioFormat": "FLAC",
+      "path": "D:\\Music\\Dying Fetus\\Make Them Beg for Death\\01 Enlighten Through Agony.flac"
     }
   ],
   "genres": [
     {
       "id": 2,
       "name": "Brutal Death Metal",
-      "album_ids": [4, 5, 9]
+      "albumIds": [4, 5, 9]
     }
   ]
 }
