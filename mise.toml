@@ -1,0 +1,51 @@
+[tools]
+python = "3.14"
+uv = "0.11"
+
+[tasks.install]
+description = "Install project dependencies"
+alias = "i"
+run = "uv sync --frozen"
+
+[tasks."app:scan"]
+description = "Scan a music folder"
+run = "uv run {{ vars.appname }} scan"
+
+[tasks."app:export"]
+description = "Export library to JSON"
+run = "uv run {{ vars.appname }} export"
+
+[tasks."lint:ruff"]
+description = "Lint with ruff"
+run = "uv run ruff check"
+
+[tasks."lint:mypy"]
+description = "Type-check with mypy"
+run = "uv run mypy"
+
+[tasks.lint]
+description = "Run all linters"
+run = { task = "lint:*" }
+
+[tasks.format]
+description = "Format code"
+alias = "fmt"
+run = [{ task = 'format:imports' }, { task = 'format:ruff' }]
+
+[tasks.test]
+description = "Run tests with coverage"
+run = "uv run pytest"
+
+[tasks."format:imports"]
+hide = true
+run = "uv run ruff check --select I --fix"
+
+[tasks."format:ruff"]
+hide = true
+run = "uv run ruff format"
+
+[vars]
+appname = "audex"
+
+[settings]
+lockfile = true

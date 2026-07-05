@@ -1,0 +1,98 @@
+[project]
+name = "audex"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Smathi LAGUI", email = "23463016+SmathiLagui@users.noreply.github.com" },
+]
+requires-python = ">=3.14"
+dependencies = [
+    "loguru>=0.7.3,<0.8.0",
+    "mutagen>=1.48.1,<2.0.0",
+    "pydantic>=2.13.4,<3.0.0",
+    "pytaglib>=3.2.0,<4.0.0",
+    "rich>=15.0.0,<16.0.0",
+    "typer>=0.26.8,<0.27.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.1.0,<3.0.0",
+    "pytest>=9.1.1,<10.0.0",
+    "pytest-cov>=7.1.0,<8.0.0",
+    "pytest-mock>=3.15.1,<4.0.0",
+    "ruff>=0.15.20,<0.16.0",
+]
+
+[project.scripts]
+audex = "audex.main:main"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 79
+include = ["src/**/*.py", "tests/**/*.py"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "PTH", # flake8-use-pathlib
+    "B",   # flake8-bugbear
+]
+
+[tool.ruff.lint.flake8-type-checking]
+strict = true
+
+[tool.ruff.lint.isort]
+known-third-party = ["typer"]
+
+[tool.mypy]
+python_version = "3.14"
+files = ["src/audex", "tests"]
+strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "taglib"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "audex.tags"
+disallow_untyped_calls = false
+
+[tool.pytest.ini_options]
+strict = true
+testpaths = ["tests"]
+addopts = [
+    "--cov",
+    "--cov-report=xml",
+    "--cov-report=term-missing",
+    "--junitxml=coverage/report.xml",
+]
+
+[tool.coverage.run]
+source = ["src/audex"]
+branch = true
+data_file = "coverage/.coverage"
+
+[tool.coverage.report]
+skip_empty = true
+
+[tool.coverage.xml]
+output = "coverage/coverage.xml"
+
+[tool.uv]
+add-bounds = "major"
+required-version = ">=0.11.5"
+
+[build-system]
+requires = ["uv_build>=0.11.5,<0.12.0"]
+build-backend = "uv_build"
