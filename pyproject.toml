@@ -55,23 +55,16 @@ strict = true
 [tool.ruff.lint.isort]
 known-third-party = ["typer"]
 
+[tool.pyright]
+stubPath = "stubs"
+
 [tool.mypy]
 python_version = "3.14"
 files = ["src/audex", "tests"]
 strict = true
 plugins = ["pydantic.mypy"]
+mypy_path = ["stubs"]
 
-[[tool.mypy.overrides]]
-module = "taglib"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "audex.tags"
-disallow_untyped_calls = false
-
-[[tool.mypy.overrides]]
-module = "tests.test_tags_readers"
-disallow_untyped_calls = false
 
 [tool.pytest.ini_options]
 strict = true

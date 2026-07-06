@@ -1,17 +1,11 @@
 import sqlite3
 
 from ..models import ArtistRow
+from .common import find_or_create_by_name
 
 
 def find_or_create_artist(conn: sqlite3.Connection, name: str) -> int:
-    name = name.strip() or 'Unknown Artist'
-    row = conn.execute(
-        'SELECT id FROM artists WHERE name = ?', (name,)
-    ).fetchone()
-    if row:
-        return int(row['id'])
-    cur = conn.execute('INSERT INTO artists (name) VALUES (?)', (name,))
-    return cur.lastrowid  # type: ignore[return-value]
+    return find_or_create_by_name(conn, 'artists', name, 'Unknown Artist')
 
 
 def get_all_artists(conn: sqlite3.Connection) -> list[ArtistRow]:

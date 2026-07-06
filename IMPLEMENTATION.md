@@ -19,16 +19,17 @@ Windows-only. The change-detection strategy depends on an NTFS-specific kernel t
 
 ## Module responsibilities
 
-| Module       | Responsibility                                                  |
-| ------------ | --------------------------------------------------------------- |
-| `database`   | App paths, SQLite connection setup, schema creation, migrations |
-| `repository` | All SQL: find-or-create, upserts, reads, orphan cleanup         |
-| `tags`       | Read embedded audio tags -> `RawTags` struct                    |
-| `covers`     | Hash cover bytes, write content-addressed file to disk          |
-| `windows`    | NTFS ChangeTime via `GetFileInformationByHandleEx`              |
-| `scanner`    | Full pipeline: walk -> diff -> tag read -> DB write             |
-| `export`     | Query DB, build payload, write `export.json`                    |
-| `main`       | CLI entry point (`scan`, `export` commands)                     |
+| Module       | Responsibility                                          |
+| ------------ | ------------------------------------------------------- |
+| `paths`      | App directory paths under `%APPDATA%\ng-player`         |
+| `database`   | SQLite connection setup, schema creation, migrations    |
+| `repository` | All SQL: find-or-create, upserts, reads, orphan cleanup |
+| `tags`       | Read embedded audio tags -> `RawTags` struct            |
+| `covers`     | Hash cover bytes, write content-addressed file to disk  |
+| `windows`    | NTFS ChangeTime via `GetFileInformationByHandleEx`      |
+| `scanner`    | Full pipeline: walk -> diff -> tag read -> DB write     |
+| `export`     | Query DB, build payload, write `export.json`            |
+| `main`       | CLI entry point (`scan`, `export` commands)             |
 
 ---
 
@@ -40,7 +41,7 @@ All writes go under `%APPDATA%\ng-player\`:
 library.db       SQLite database
 export.json      Frontend payload (overwritten on each export)
 covers\          Content-addressed cover images: {sha256_hex}.{ext}
-logs\            Rotating scan logs (last 9 files kept)
+logs\            Rotating scan logs (last 10 files kept)
 ```
 
 The music folder is never written to.
@@ -65,9 +66,9 @@ CREATE TABLE IF NOT EXISTS artists (
 );
 
 CREATE TABLE IF NOT EXISTS covers (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256_hash TEXT    NOT NULL UNIQUE,
-    extension   TEXT    NOT NULL                      -- "jpg" or "png"
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    content_hash TEXT    NOT NULL UNIQUE,
+    extension    TEXT    NOT NULL                      -- "jpg" or "png"
 );
 
 CREATE TABLE IF NOT EXISTS albums (
@@ -235,9 +236,9 @@ Bitrate: `bitrate_kbps` is `None` for WAV (uncompressed, no meaningful lossy bit
 
 1. Extract raw bytes + MIME type from the tag.
 2. Determine extension: `image/jpeg` -> `"jpg"`, `image/png` -> `"png"`. Other MIME types are ignored.
-3. Compute `sha256(bytes)` -> hex string.
-4. Write to `covers/{sha256}.{ext}` if not already present (content-addressed, idempotent).
-5. Store `(sha256, ext)` in the `covers` table; record the row ID as `cover_id` on the album.
+3. Compute `xxh3_128(bytes)` -> hex string (`content_hash`).
+4. Write to `covers/{content_hash}.{ext}` if not already present (content-addressed, idempotent).
+5. Store `(content_hash, ext)` in the `covers` table; record the row ID as `cover_id` on the album.
 
 Two albums with identical artwork share one file on disk. Cover files are never modified, only created or deleted.
 
@@ -414,7 +415,7 @@ Written to `%APPDATA%\ng-player\export.json`. All keys are camelCase. This is th
 | SQLite           | `rusqlite` (with `bundled` feature) |
 | Audio tags       | `lofty`                             |
 | JSON             | `serde` + `serde_json`              |
-| SHA256           | `sha2`                              |
+| xxHash (xxh3)    | `xxhash-rust`                       |
 | Windows API      | `windows` crate                     |
 | CLI              | `clap`                              |
 | Progress display | `indicatif`                         |

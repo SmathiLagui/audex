@@ -75,12 +75,12 @@ Requires a prior `scan` run.
 
 ## Data locations
 
-| Path                              | Contents                                          |
-| --------------------------------- | ------------------------------------------------- |
-| `%APPDATA%\ng-player\library.db`  | SQLite database                                   |
-| `%APPDATA%\ng-player\export.json` | Frontend payload                                  |
-| `%APPDATA%\ng-player\covers\`     | Content-addressed cover images (`{sha256}.{ext}`) |
-| `%APPDATA%\ng-player\logs\`       | Rotating scan logs (last 9 kept)                  |
+| Path                              | Contents                                                |
+| --------------------------------- | ------------------------------------------------------- |
+| `%APPDATA%\ng-player\library.db`  | SQLite database                                         |
+| `%APPDATA%\ng-player\export.json` | Frontend payload                                        |
+| `%APPDATA%\ng-player\covers\`     | Content-addressed cover images (`{content_hash}.{ext}`) |
+| `%APPDATA%\ng-player\logs\`       | Rotating scan logs (last 10 kept)                       |
 
 ---
 

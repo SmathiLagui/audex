@@ -10,6 +10,9 @@ _FileBasicInfo = 0
 _EPOCH_OFFSET_100NS = 116_444_736_000_000_000
 
 _k32 = ctypes.windll.kernel32
+_k32.CreateFileW.restype = wintypes.HANDLE
+_k32.GetFileInformationByHandleEx.restype = wintypes.BOOL
+_k32.CloseHandle.restype = wintypes.BOOL
 
 
 class _FILE_BASIC_INFO(ctypes.Structure):

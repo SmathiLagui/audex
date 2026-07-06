@@ -64,7 +64,6 @@ def _setup_logging() -> None:
         logs_dir / 'scanner_{time}.log',
         level=logging.DEBUG,
         encoding='utf-8',
-        delay=True,
     )
     logger.info('Run: {}', ' '.join(sys.argv))
 
@@ -138,20 +137,25 @@ def scan(
                     logger.info('Force re-index aborted by user')
                     raise typer.Abort()
 
-        with Progress(
-            *Progress.get_default_columns(),
-            TimeElapsedColumn(),
-            console=console,
-            transient=True,
-        ) as progress:
-            stats = scanner_mod.scan_folder(
-                folder,
-                conn,
-                covers_dir,
-                progress,
-                force,
-                backend,
-            )
+        try:
+            with Progress(
+                *Progress.get_default_columns(),
+                TimeElapsedColumn(),
+                console=console,
+                transient=True,
+            ) as progress:
+                stats = scanner_mod.scan_folder(
+                    folder,
+                    conn,
+                    covers_dir,
+                    progress,
+                    force,
+                    backend,
+                )
+        except NotImplementedError as e:
+            logger.error('Tag backend {!r} is not implemented', backend)
+            console.print(f'[red]Error:[/red] {e}')
+            raise typer.Exit(1) from e
 
     table = Table(title='Scan complete', show_header=False)
     table.add_column('', style='dim')
@@ -214,7 +218,18 @@ def export() -> None:
 
 def main() -> None:
     _setup_logging()
-    app()
+    try:
+        app()
+    except KeyboardInterrupt:
+        logger.info('Interrupted by user')
+        raise SystemExit(130) from None
+    except SystemExit as e:
+        if e.code not in (0, None):
+            logger.warning('Exited with code {}', e.code)
+        raise
+    except Exception as e:
+        logger.exception('Unhandled exception')
+        raise SystemExit(1) from e
 
 
 if __name__ == '__main__':

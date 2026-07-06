@@ -1,10 +1,11 @@
 import os
 import sqlite3
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 from loguru import logger
-from rich.progress import Progress
+from rich.progress import Progress, TaskID
 
 from . import covers as covers_mod
 from . import repository as repo
@@ -74,6 +75,26 @@ def _wipe_library(conn: sqlite3.Connection, covers_dir: Path) -> None:
     logger.info('Library wiped - starting fresh')
 
 
+def _read_tags_for_paths(
+    paths: Sequence[Path | str],
+    backend: TagBackend,
+    progress: Progress,
+    task_id: TaskID,
+) -> tuple[list[RawTags], int]:
+    errors = 0
+    raw_list: list[RawTags] = []
+    for p in paths:
+        logger.debug('Reading tags: {}', p)
+        result = tags_mod.read_tags(Path(p), backend)
+        if result is None:
+            logger.warning('Tag read failed (skipped): {}', p)
+            errors += 1
+        else:
+            raw_list.append(result)
+        progress.advance(task_id)
+    return raw_list, errors
+
+
 def scan_folder(
     folder: Path,
     conn: sqlite3.Connection,
@@ -83,6 +104,7 @@ def scan_folder(
     backend: TagBackend = TagBackend.PyTagLib,
 ) -> ScanStats:
     logger.info('Tag backend: {}', backend.value)
+    tags_mod.resolve_reader(backend)
     count = repo.count_tracked_files(conn)
     if force and count > 0:
         logger.info('Force re-index: wiping {} existing file state(s)', count)
@@ -138,17 +160,13 @@ def _first_index(
     read_task = progress.add_task('Reading tags...', total=len(paths))
     for batch_start in range(0, len(paths), _BATCH_SIZE):
         batch = paths[batch_start : batch_start + _BATCH_SIZE]
-        raw_list: list[RawTags] = []
-
-        for path in batch:
-            logger.debug('Reading tags: {}', path)
-            result = tags_mod.read_tags(path, backend)
-            if result is None:
-                logger.warning('Tag read failed (skipped): {}', path)
-                stats.errors += 1
-            else:
-                raw_list.append(result)
-            progress.advance(read_task)
+        raw_list, batch_errors = _read_tags_for_paths(
+            batch,
+            backend,
+            progress,
+            read_task,
+        )
+        stats.errors += batch_errors
 
         cover_map = _process_covers(raw_list, covers_dir)
 
@@ -312,15 +330,13 @@ def _refresh(
         )
         t0 = time.perf_counter()
         read_task = progress.add_task('Reading tags...', total=len(to_read))
-        for p in to_read:
-            logger.debug('Reading tags: {}', p)
-            result = tags_mod.read_tags(Path(p), backend)
-            if result is None:
-                logger.warning('Tag read failed (skipped): {}', p)
-                stats.errors += 1
-            else:
-                raw_list.append(result)
-            progress.advance(read_task)
+        raw_list, read_errors = _read_tags_for_paths(
+            to_read,
+            backend,
+            progress,
+            read_task,
+        )
+        stats.errors += read_errors
         progress.remove_task(read_task)
         logger.info(
             'Tag reading: {} ok, {} error(s) in {:.2f}s',

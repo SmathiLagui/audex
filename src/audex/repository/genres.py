@@ -1,17 +1,11 @@
 import sqlite3
 
 from ..models import GenreRow
+from .common import find_or_create_by_name
 
 
 def find_or_create_genre(conn: sqlite3.Connection, name: str) -> int:
-    name = name.strip() or 'Unknown'
-    row = conn.execute(
-        'SELECT id FROM genres WHERE name = ?', (name,)
-    ).fetchone()
-    if row:
-        return int(row['id'])
-    cur = conn.execute('INSERT INTO genres (name) VALUES (?)', (name,))
-    return cur.lastrowid  # type: ignore[return-value]
+    return find_or_create_by_name(conn, 'genres', name, 'Unknown')
 
 
 def get_all_genres(conn: sqlite3.Connection) -> list[GenreRow]:

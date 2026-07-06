@@ -12,6 +12,8 @@ A Windows-only Python library embedded in a Tauri desktop app (Angular frontend,
 
 **Tooling:** All dev tasks (lint, format, test) are run via `mise run <task>`. Never call `uv run ruff`, `uv run mypy`, `uv run pytest`, etc. directly. Discover available tasks with `mise tasks`.
 
+**Typography:** Never use characters that are not typeable on a standard keyboard (em dash, Unicode arrows, curly quotes, etc.). Use plain ASCII equivalents: hyphen `-` for dashes, `->` for arrows. Applies to all written output: Markdown, comments, docstrings, and assistant responses.
+
 **Hard constraints:**
 
 - Windows only - platform-specific APIs are acceptable and encouraged.
@@ -59,7 +61,7 @@ The schema supports the following entities:
 - **Album** - belongs to one album artist. Has title, year, genre, cover, and an `is_compilation` flag.
 - **Track** - belongs to one album. Has its own interpreter (may differ from album artist). Carries the absolute file path, bitrate, and audio format.
 - **Genre** - deduplicated by name. One genre per album.
-- **Cover** - deduplicated by content hash. Stored on disk as `{sha256}.{ext}` under `%APPDATA%\ng-player\covers\`. The DB stores the hash and extension; the file is the source of truth.
+- **Cover** - deduplicated by content hash (xxhash xxh3_128). Stored on disk as `{content_hash}.{ext}` under `%APPDATA%\ng-player\covers\`. The DB stores the hash and extension; the file is the source of truth.
 - **File state** - stores `path`, `size_bytes`, and `change_time_ns` (NTFS ChangeTime). Used to detect changes without re-reading tags on every run.
 
 ---
@@ -123,7 +125,7 @@ The frontend loads this once into memory and never queries SQLite again. All ent
 
 **Artist note:** a track interpreter who is not the album artist on any album in the library still appears in `artists` with `album_ids: []`. The UI uses `album_ids.length > 0` to decide what to show in the album artist list. Track detail and search look up any artist by ID regardless.
 
-**Cover note:** `cover` is the filename of a content-addressed file on disk (`%APPDATA%\ng-player\covers\{sha256}.{ext}`), or `null` if the album has no embedded art. Two albums sharing identical artwork share one file on disk.
+**Cover note:** `cover` is the filename of a content-addressed file on disk (`%APPDATA%\ng-player\covers\{content_hash}.{ext}`), or `null` if the album has no embedded art. Two albums sharing identical artwork share one file on disk.
 
 ---
 
