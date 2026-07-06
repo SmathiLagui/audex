@@ -1,4 +1,5 @@
 import logging
+import sqlite3
 import sys
 import time
 from pathlib import Path
@@ -11,29 +12,47 @@ from rich.progress import Progress, TimeElapsedColumn
 from rich.table import Table
 
 from . import export as export_mod
+from . import repository as repo
 from . import scanner as scanner_mod
-from .database import (
-    create_schema,
-    get_app_dir,
-    get_covers_dir,
-    get_db_path,
-    get_logs_dir,
-    open_connection,
-)
+from .database import create_schema, open_connection
+from .paths import get_covers_dir, get_db_path, get_export_path, get_logs_dir
 from .tags import TagBackend
+
+MAX_LOG_FILES = 10
 
 app = typer.Typer(add_completion=False)
 console = Console()
 
 
+def _run_export(conn: sqlite3.Connection, out_path: Path) -> None:
+    covers_dir = get_covers_dir()
+    t0 = time.perf_counter()
+    with console.status('Exporting library...'):
+        export_mod.export_library(conn, covers_dir, out_path)
+    elapsed = time.perf_counter() - t0
+    console.print(f'Exported to [bold]{out_path}[/bold] in {elapsed:.2f}s')
+
+
+def _format_duration(ms: int) -> str:
+    total_s = ms // 1000
+    h = total_s // 3600
+    m = (total_s % 3600) // 60
+    s = total_s % 60
+    if h:
+        return f'{h}h {m:02d}m {s:02d}s'
+    return f'{m}m {s:02d}s'
+
+
 def _prune_old_logs(logs_dir: Path) -> None:
-    # Keep the last 10 log files
-    keep = 9
     files = sorted(
         logs_dir.glob('scanner_*.log'),
         key=lambda f: f.stat().st_mtime,
     )
-    for old in files[:-keep] if len(files) >= keep else []:
+    # Prune to MAX_LOG_FILES-1; the new file brings the total to MAX_LOG_FILES
+    to_delete = (
+        files[: -(MAX_LOG_FILES - 1)] if len(files) >= MAX_LOG_FILES else []
+    )
+    for old in to_delete:
         old.unlink(missing_ok=True)
 
 
@@ -68,6 +87,14 @@ def scan(
             help='Wipe existing library and re-index.',
         ),
     ] = False,
+    yes: Annotated[
+        bool,
+        typer.Option(
+            '--yes',
+            '-y',
+            help='Skip confirmation prompt for --force.',
+        ),
+    ] = False,
     backend: Annotated[
         TagBackend,
         typer.Option(
@@ -76,6 +103,14 @@ def scan(
             help='Tag reading backend.',
         ),
     ] = TagBackend.PyTagLib,
+    export_after: Annotated[
+        bool,
+        typer.Option(
+            '--export',
+            '-e',
+            help='Export library to JSON after scan.',
+        ),
+    ] = False,
 ) -> None:
     """Index a music folder into the local library database."""
     if sys.platform != 'win32':
@@ -91,6 +126,17 @@ def scan(
 
     with open_connection(db_path) as conn:
         create_schema(conn)
+
+        if force and not yes:
+            count = repo.count_tracked_files(conn)
+            if count > 0:
+                confirmed = typer.confirm(
+                    'This will wipe the existing library'
+                    f' ({count} tracked file(s)). Continue?',
+                )
+                if not confirmed:
+                    logger.info('Force re-index aborted by user')
+                    raise typer.Abort()
 
         with Progress(
             *Progress.get_default_columns(),
@@ -120,6 +166,37 @@ def scan(
     table.add_row('Elapsed', f'{stats.elapsed_s:.2f}s')
     console.print(table)
 
+    if export_after:
+        with open_connection(db_path) as conn:
+            _run_export(conn, get_export_path())
+
+
+@app.command()
+def stats() -> None:
+    """Show library statistics."""
+    db_path = get_db_path()
+    if not db_path.exists():
+        console.print(
+            '[red]No library found. Run [bold]scan[/bold] first.[/red]'
+        )
+        raise typer.Exit(1)
+
+    with open_connection(db_path) as conn:
+        s = repo.query_stats(conn)
+
+    db_size_mb = db_path.stat().st_size / (1024 * 1024)
+    console.print(f'Database: {db_path} ({db_size_mb:.1f} MB)')
+
+    table = Table(title='Library', show_header=False)
+    table.add_column('', style='dim')
+    table.add_column('', justify='right')
+    table.add_row('Tracks', str(s.track_count))
+    table.add_row('Albums', str(s.album_count))
+    table.add_row('Artists', str(s.artist_count))
+    table.add_row('Genres', str(s.genre_count))
+    table.add_row('Duration', _format_duration(s.total_duration_ms))
+    console.print(table)
+
 
 @app.command()
 def export() -> None:
@@ -131,18 +208,8 @@ def export() -> None:
         )
         raise typer.Exit(1)
 
-    app_dir = get_app_dir()
-    covers_dir = get_covers_dir()
-
-    t0 = time.perf_counter()
-    with (
-        open_connection(db_path) as conn,
-        console.status('Exporting library...'),
-    ):
-        out_path = export_mod.export_library(conn, app_dir, covers_dir)
-    elapsed = time.perf_counter() - t0
-
-    console.print(f'Exported to [bold]{out_path}[/bold] in {elapsed:.2f}s')
+    with open_connection(db_path) as conn:
+        _run_export(conn, get_export_path())
 
 
 def main() -> None:

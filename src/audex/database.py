@@ -4,28 +4,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 
-def get_app_dir() -> Path:
-    app_dir = Path.home() / 'AppData' / 'Roaming' / 'ng-player'
-    app_dir.mkdir(parents=True, exist_ok=True)
-    return app_dir
-
-
-def get_db_path() -> Path:
-    return get_app_dir() / 'library.db'
-
-
-def get_covers_dir() -> Path:
-    covers = get_app_dir() / 'covers'
-    covers.mkdir(parents=True, exist_ok=True)
-    return covers
-
-
-def get_logs_dir() -> Path:
-    logs = get_app_dir() / 'logs'
-    logs.mkdir(parents=True, exist_ok=True)
-    return logs
-
-
 @contextmanager
 def open_connection(db_path: Path) -> Generator[sqlite3.Connection]:
     conn = sqlite3.connect(db_path)
@@ -51,9 +29,9 @@ CREATE TABLE IF NOT EXISTS artists (
 );
 
 CREATE TABLE IF NOT EXISTS covers (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha256_hash TEXT    NOT NULL UNIQUE,
-    extension   TEXT    NOT NULL
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    content_hash TEXT    NOT NULL UNIQUE,
+    extension    TEXT    NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS albums (

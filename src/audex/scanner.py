@@ -27,121 +27,11 @@ def _walk_audio(folder: Path) -> list[Path]:
     return result
 
 
-def _write_tracks(
-    conn: sqlite3.Connection,
-    raw_list: list[RawTags],
-    cover_map: dict[str, tuple[str, str]],
-) -> tuple[int, frozenset[int]]:
-    """Persist a list of RawTags to the DB.
-
-    Returns (count_written, touched_album_ids).
-    """
-    written = 0
-    album_best_cover: dict[int, int | None] = {}
-
-    for raw in raw_list:
-        try:
-            genre_id = repo.find_or_create_genre(conn, raw.genre or 'Unknown')
-            track_artist_id = repo.find_or_create_artist(
-                conn,
-                raw.track_artist or 'Unknown Artist',
-            )
-            album_artist_id = repo.find_or_create_artist(
-                conn,
-                raw.album_artist or raw.track_artist or 'Unknown Artist',
-            )
-
-            cover_id: int | None = None
-            if raw.path in cover_map:
-                sha256, ext = cover_map[raw.path]
-                cover_id = repo.find_or_create_cover(conn, sha256, ext)
-                logger.debug(
-                    'Cover resolved: cover_id={} for {}',
-                    cover_id,
-                    Path(raw.path).name,
-                )
-
-            album_id = repo.find_or_create_album(
-                conn,
-                title=raw.album_title or 'Unknown Album',
-                artist_id=album_artist_id,
-                year=raw.year,
-                genre_id=genre_id,
-                cover_id=cover_id,
-            )
-            repo.upsert_track(
-                conn,
-                title=raw.title,
-                artist_id=track_artist_id,
-                album_id=album_id,
-                track_number=raw.track_number,
-                disc_number=raw.disc_number,
-                duration_ms=raw.duration_ms,
-                path=raw.path,
-                has_cover=cover_id is not None,
-                bitrate_kbps=raw.bitrate_kbps,
-                audio_format=raw.audio_format,
-            )
-            written += 1
-            logger.debug(
-                'Track upserted: "{}" / "{}" [{}]',
-                raw.title or '(no title)',
-                raw.album_title or 'Unknown Album',
-                Path(raw.path).name,
-            )
-
-            if album_id not in album_best_cover or cover_id is not None:
-                album_best_cover[album_id] = cover_id
-        except Exception:
-            logger.exception('Failed to write track to DB: {}', raw.path)
-
-    for album_id, best_cover in album_best_cover.items():
-        if best_cover is not None:
-            repo.update_album_cover(conn, album_id, best_cover)
-            logger.debug(
-                'Album cover set: album_id={} cover_id={}',
-                album_id,
-                best_cover,
-            )
-        else:
-            # Query the DB (which now reflects all upserted tracks) to see
-            # if any track in this album still has embedded art - including
-            # unchanged tracks that weren't in this batch.
-            tracks_with_art = conn.execute(
-                'SELECT COUNT(*) FROM tracks'
-                ' WHERE album_id = ? AND has_cover = 1',
-                (album_id,),
-            ).fetchone()[0]
-            if tracks_with_art == 0:
-                repo.update_album_cover(conn, album_id, None)
-                logger.debug(
-                    'Album cover cleared: album_id={}'
-                    ' (no track has embedded art)',
-                    album_id,
-                )
-            else:
-                logger.debug(
-                    'Album cover kept: album_id={}'
-                    ' ({} track(s) still have embedded art)',
-                    album_id,
-                    tracks_with_art,
-                )
-
-    logger.debug(
-        '_write_tracks: {} written, {} album(s) cover-updated',
-        written,
-        len(album_best_cover),
-    )
-    return written, frozenset(album_best_cover)
-
-
 def _build_file_state(path: Path) -> FileStateRow:
-    stat = path.stat()
-    change_time = get_change_time_ns(path)
     return FileStateRow(
         path=str(path),
-        size_bytes=stat.st_size,
-        change_time_ns=change_time,
+        size_bytes=path.stat().st_size,
+        change_time_ns=get_change_time_ns(path),
     )
 
 
@@ -149,20 +39,20 @@ def _process_covers(
     raw_list: list[RawTags],
     covers_dir: Path,
 ) -> dict[str, tuple[str, str]]:
-    """Write cover files; return path -> (sha256, ext) for tracks with art."""
+    """Write cover files; return path -> (content_hash, ext) per track."""
     cover_map: dict[str, tuple[str, str]] = {}
     for raw in raw_list:
         if raw.cover_bytes and raw.cover_format:
             try:
-                sha256, ext = covers_mod.process_cover(
+                content_hash, ext = covers_mod.process_cover(
                     raw.cover_bytes,
                     raw.cover_format,
                     covers_dir,
                 )
-                cover_map[raw.path] = (sha256, ext)
+                cover_map[raw.path] = (content_hash, ext)
                 logger.debug(
                     'Cover: {}.{} ({} bytes) <- {}',
-                    sha256[:12],
+                    content_hash[:12],
                     ext,
                     len(raw.cover_bytes),
                     Path(raw.path).name,
@@ -179,17 +69,7 @@ def _process_covers(
 
 def _wipe_library(conn: sqlite3.Connection, covers_dir: Path) -> None:
     """Delete all library data and cover files for a clean re-index."""
-    with conn:
-        conn.execute('DELETE FROM tracks')
-        conn.execute('DELETE FROM file_states')
-        conn.execute('DELETE FROM albums')
-        conn.execute('DELETE FROM artists')
-        conn.execute('DELETE FROM genres')
-        conn.execute('DELETE FROM covers')
-        conn.execute(
-            'DELETE FROM sqlite_sequence'
-            " WHERE name IN ('genres','artists','covers','albums','tracks')"
-        )
+    repo.wipe_all(conn)
     covers_mod.delete_orphan_cover_files(covers_dir, frozenset())
     logger.info('Library wiped - starting fresh')
 
@@ -203,7 +83,7 @@ def scan_folder(
     backend: TagBackend = TagBackend.PyTagLib,
 ) -> ScanStats:
     logger.info('Tag backend: {}', backend.value)
-    count = conn.execute('SELECT COUNT(*) FROM file_states').fetchone()[0]
+    count = repo.count_tracked_files(conn)
     if force and count > 0:
         logger.info('Force re-index: wiping {} existing file state(s)', count)
         _wipe_library(conn, covers_dir)
@@ -272,18 +152,15 @@ def _first_index(
 
         cover_map = _process_covers(raw_list, covers_dir)
 
-        with conn:
-            written, album_ids = _write_tracks(conn, raw_list, cover_map)
-            repo.update_compilation_flags(conn, album_ids)
-            stats.new_files += written
-            for raw in raw_list:
-                try:
-                    state = _build_file_state(Path(raw.path))
-                    repo.upsert_file_state(conn, state)
-                except Exception:
-                    logger.warning(
-                        'Could not record file state for {}', raw.path
-                    )
+        file_states: list[FileStateRow] = []
+        for raw in raw_list:
+            try:
+                state = _build_file_state(Path(raw.path))
+                file_states.append(state)
+            except Exception:
+                logger.warning('Could not record file state for {}', raw.path)
+        written = repo.write_tracks(conn, raw_list, cover_map, file_states)
+        stats.new_files += written
 
     progress.remove_task(read_task)
     logger.info(
@@ -468,47 +345,29 @@ def _refresh(
             time.perf_counter() - t0,
         )
 
+    all_to_update = (
+        set(new_paths).union(size_changed).union(change_time_changed)
+    )
+    file_states: list[FileStateRow] = []
+    for p in all_to_update:
+        try:
+            state = _build_file_state(Path(p))
+            file_states.append(state)
+        except Exception:
+            logger.warning('Could not record file state for {}', p)
+
     t0 = time.perf_counter()
-    logger.debug('Opening DB transaction')
-    with conn:
-        if deleted_paths:
-            logger.debug('Deleting {} track(s) from DB', len(deleted_paths))
-            for p in deleted_paths:
-                logger.debug('  delete: {}', p)
-                repo.delete_by_path(conn, p)
-
-        _, album_ids = _write_tracks(conn, raw_list, cover_map)
-        repo.update_compilation_flags(conn, album_ids)
-
-        if deleted_paths or raw_list:
-            repo.cleanup_orphans(conn)
-            logger.debug('Orphan cleanup run after deletions/updates')
-
-        all_to_update = (
-            set(new_paths).union(size_changed).union(change_time_changed)
-        )
-        if all_to_update:
-            logger.debug(
-                'Updating {} file state record(s)',
-                len(all_to_update),
-            )
-        for p in all_to_update:
-            try:
-                state = _build_file_state(Path(p))
-                repo.upsert_file_state(conn, state)
-            except Exception:
-                logger.warning('Could not record file state for {}', p)
-    logger.info('DB commit in {:.2f}s', time.perf_counter() - t0)
+    for p in deleted_paths:
+        repo.delete_by_path(conn, p)
+    repo.write_tracks(conn, raw_list, cover_map, file_states)
+    if deleted_paths or raw_list:
+        repo.cleanup_orphans(conn)
+    logger.info('DB operations in {:.2f}s', time.perf_counter() - t0)
 
     stats.new_files = len(new_paths)
 
     if deleted_paths or raw_list:
-        known_hashes = frozenset(
-            row[0]
-            for row in conn.execute(
-                'SELECT sha256_hash FROM covers'
-            ).fetchall()
-        )
+        known_hashes = repo.get_all_cover_hashes(conn)
         n_deleted = covers_mod.delete_orphan_cover_files(
             covers_dir,
             known_hashes,

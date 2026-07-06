@@ -1,3 +1,7 @@
+import sqlite3
+from collections.abc import Iterable
+from typing import Self
+
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
@@ -8,6 +12,14 @@ class SchemaBaseModel(BaseModel):
         alias_generator=to_camel,
         validate_by_name=True,
     )
+
+    @classmethod
+    def from_db(cls, row: sqlite3.Row) -> Self:
+        return cls.model_validate(dict(row))
+
+    @classmethod
+    def from_db_rows(cls, rows: Iterable[sqlite3.Row]) -> list[Self]:
+        return [cls.from_db(row) for row in rows]
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +39,7 @@ class ArtistRow(SchemaBaseModel):
 
 class CoverRow(SchemaBaseModel):
     id: int
-    sha256_hash: str
+    content_hash: str
     extension: str
 
 
@@ -38,6 +50,18 @@ class AlbumRow(SchemaBaseModel):
     year: int | None
     genre_id: int
     cover_id: int | None
+
+
+class AlbumQueryRow(SchemaBaseModel):
+    id: int
+    title: str
+    artist_id: int
+    year: int | None
+    genre_id: int
+    is_compilation: bool
+    content_hash: str | None
+    extension: str | None
+    track_count: int
 
 
 class TrackRow(SchemaBaseModel):

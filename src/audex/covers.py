@@ -1,5 +1,8 @@
-import hashlib
 from pathlib import Path
+
+import xxhash
+
+_COVER_SUFFIXES = frozenset({'.jpg', '.png'})
 
 
 def process_cover(
@@ -7,29 +10,26 @@ def process_cover(
     cover_format: str,
     covers_dir: Path,
 ) -> tuple[str, str]:
-    """Write cover to disk (content-addressed); return (sha256_hex, extension).
+    """Write cover to disk (content-addressed); return (content_hash, ext).
 
     Idempotent: existing files are not rewritten.
     """
-    sha256 = hashlib.sha256(cover_bytes).hexdigest()
-    dest = covers_dir / f'{sha256}.{cover_format}'
+    content_hash = xxhash.xxh3_128(cover_bytes).hexdigest()
+    dest = covers_dir / f'{content_hash}.{cover_format}'
     if not dest.exists():
         dest.write_bytes(cover_bytes)
-    return sha256, cover_format
+    return content_hash, cover_format
 
 
-def cover_path(covers_dir: Path, sha256: str, extension: str) -> Path:
-    return covers_dir / f'{sha256}.{extension}'
-
-
-_COVER_SUFFIXES = frozenset({'.jpg', '.png'})
+def cover_path(covers_dir: Path, content_hash: str, extension: str) -> Path:
+    return covers_dir / f'{content_hash}.{extension}'
 
 
 def delete_orphan_cover_files(
     covers_dir: Path,
     known_hashes: frozenset[str],
 ) -> int:
-    """Delete cover files on disk whose sha256 stem is no longer in the DB."""
+    """Delete cover files on disk whose hash stem is no longer in the DB."""
     deleted = 0
     for f in covers_dir.iterdir():
         if (

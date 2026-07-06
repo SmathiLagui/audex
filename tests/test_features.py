@@ -134,7 +134,7 @@ class TestCompilationDetection:
         _patch_io(mocker, tag_map)
         scan_folder(music_folder, db, covers_dir, progress)
 
-        out = export_library(db, tmp_path, covers_dir)
+        out = export_library(db, covers_dir, tmp_path / 'export.json')
         data = json.loads(out.read_text(encoding='utf-8'))
 
         album = data['albums'][0]
@@ -180,7 +180,7 @@ class TestBitrateFormat:
         _patch_io(mocker, tag_map)
         scan_folder(music_folder, db, covers_dir, progress)
 
-        out = export_library(db, tmp_path, covers_dir)
+        out = export_library(db, covers_dir, tmp_path / 'export.json')
         data = json.loads(out.read_text(encoding='utf-8'))
 
         track = data['tracks'][0]
@@ -201,7 +201,7 @@ class TestBitrateFormat:
         _patch_io(mocker, tag_map)
         scan_folder(music_folder, db, covers_dir, progress)
 
-        out = export_library(db, tmp_path, covers_dir)
+        out = export_library(db, covers_dir, tmp_path / 'export.json')
         data = json.loads(out.read_text(encoding='utf-8'))
 
         track = data['tracks'][0]
@@ -237,7 +237,7 @@ class TestExportStats:
         _patch_io(mocker, tag_map)
         scan_folder(music_folder, db, covers_dir, progress)
 
-        out = export_library(db, tmp_path, covers_dir)
+        out = export_library(db, covers_dir, tmp_path / 'export.json')
         data = json.loads(out.read_text(encoding='utf-8'))
 
         stats = data['stats']
@@ -253,7 +253,7 @@ class TestExportStats:
         covers_dir: Path,
         tmp_path: Path,
     ) -> None:
-        out = export_library(db, tmp_path, covers_dir)
+        out = export_library(db, covers_dir, tmp_path / 'export.json')
         data = json.loads(out.read_text(encoding='utf-8'))
 
         stats = data['stats']
@@ -269,6 +269,6 @@ class TestExportStats:
         covers_dir: Path,
         tmp_path: Path,
     ) -> None:
-        out = export_library(db, tmp_path, covers_dir)
+        out = export_library(db, covers_dir, tmp_path / 'export.json')
         data = json.loads(out.read_text(encoding='utf-8'))
         assert list(data.keys())[0] == 'stats'

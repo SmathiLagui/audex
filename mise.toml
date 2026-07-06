@@ -15,6 +15,10 @@ run = "uv run {{ vars.appname }} scan"
 description = "Export library to JSON"
 run = "uv run {{ vars.appname }} export"
 
+[tasks."app:stats"]
+description = "Display current indexed db stats"
+run = "uv run {{ vars.appname }} stats"
+
 [tasks."lint:ruff"]
 description = "Lint with ruff"
 run = "uv run ruff check"

@@ -89,7 +89,7 @@ class TestTrackOrdering:
         _patch_io(mocker, tag_map)
         scan_folder(music_folder, db, covers_dir, progress)
 
-        out = export_library(db, tmp_path, covers_dir)
+        out = export_library(db, covers_dir, tmp_path / 'export.json')
         data = json.loads(out.read_text(encoding='utf-8'))
 
         album = data['albums'][0]
@@ -119,7 +119,7 @@ class TestTrackOrdering:
         _patch_io(mocker, tag_map)
         scan_folder(music_folder, db, covers_dir, progress)
 
-        out = export_library(db, tmp_path, covers_dir)
+        out = export_library(db, covers_dir, tmp_path / 'export.json')
         data = json.loads(out.read_text(encoding='utf-8'))
 
         album = data['albums'][0]
@@ -147,7 +147,7 @@ class TestTrackOrdering:
         _patch_io(mocker, tag_map)
         scan_folder(music_folder, db, covers_dir, progress)
 
-        out = export_library(db, tmp_path, covers_dir)
+        out = export_library(db, covers_dir, tmp_path / 'export.json')
         data = json.loads(out.read_text(encoding='utf-8'))
 
         album = data['albums'][0]

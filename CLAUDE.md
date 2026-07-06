@@ -8,7 +8,9 @@ A Windows-only Python library embedded in a Tauri desktop app (Angular frontend,
 ---
 > For the "UI" part of the console, `rich` is used
 
-**Current stack:** Python 3.14+, pydantic v2, SQLite, `loguru` for logging (and log rotation), `uv` for package management.
+**Current stack:** Python 3.14+, pydantic v2, SQLite, `loguru` for logging (and log rotation), `uv` for package management, `mise` as task runner.
+
+**Tooling:** All dev tasks (lint, format, test) are run via `mise run <task>`. Never call `uv run ruff`, `uv run mypy`, `uv run pytest`, etc. directly. Discover available tasks with `mise tasks`.
 
 **Hard constraints:**
 
