@@ -35,9 +35,18 @@ def _run_export(conn: sqlite3.Connection, out_path: Path) -> None:
 
 def _format_duration(ms: int) -> str:
     total_s = ms // 1000
-    h = total_s // 3600
-    m = (total_s % 3600) // 60
-    s = total_s % 60
+    m, s = divmod(total_s, 60)
+    h, m = divmod(m, 60)
+    d, h = divmod(h, 24)
+    mo, d = divmod(d, 30)
+    y, mo = divmod(mo, 12)
+
+    if y:
+        return f'{y}y {mo}mo {d}d {h}h {m:02d}m {s:02d}s'
+    if mo:
+        return f'{mo}mo {d}d {h}h {m:02d}m {s:02d}s'
+    if d:
+        return f'{d}d {h}h {m:02d}m {s:02d}s'
     if h:
         return f'{h}h {m:02d}m {s:02d}s'
     return f'{m}m {s:02d}s'

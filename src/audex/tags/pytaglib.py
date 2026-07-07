@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import taglib
+from loguru import logger
 
 from ..models import RawTags
 from .helpers import TagReadError, mime_to_ext, parse_int, parse_year
@@ -31,6 +32,12 @@ def read_pytaglib(path: Path) -> RawTags:
             if fmt and pic.data:
                 cover_bytes = pic.data
                 cover_format = fmt
+            else:
+                logger.warning(
+                    'Unrecognised cover MIME {!r} in {}',
+                    pic.mime_type,
+                    path.name,
+                )
 
         year = parse_year(_tag('DATE'))
 

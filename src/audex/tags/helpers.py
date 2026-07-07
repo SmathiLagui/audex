@@ -1,3 +1,6 @@
+from ..covers import COVER_MIME_TO_EXT
+
+
 class TagReadError(Exception):
     """Raised by a tag backend when a file cannot be read or parsed."""
 
@@ -13,12 +16,9 @@ def parse_int(value: object) -> int | None:
 
 
 def mime_to_ext(mime: str) -> str | None:
-    mime = mime.lower()
-    if 'jpeg' in mime or 'jpg' in mime:
-        return 'jpg'
-    if 'png' in mime:
-        return 'png'
-    return None
+    # MIME types arrive as 'image/jpeg'; the table keys use the subtype only
+    key = mime.lower().split('/')[-1]
+    return COVER_MIME_TO_EXT.get(key)
 
 
 def parse_year(year_raw: str | None) -> int | None:

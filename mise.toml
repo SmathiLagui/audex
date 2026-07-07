@@ -1,5 +1,6 @@
 [tools]
 python = "3.14"
+rust = "1.96.0"
 uv = "0.11"
 
 [tasks.install]

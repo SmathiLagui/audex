@@ -51,11 +51,17 @@ class TestMimeToExt:
     def test_image_png(self) -> None:
         assert mime_to_ext('image/png') == 'png'
 
+    def test_image_webp(self) -> None:
+        assert mime_to_ext('image/webp') == 'webp'
+
+    def test_bare_subtype(self) -> None:
+        assert mime_to_ext('jpeg') == 'jpg'
+
     def test_case_insensitive(self) -> None:
         assert mime_to_ext('Image/JPEG') == 'jpg'
 
     def test_unknown_returns_none(self) -> None:
-        assert mime_to_ext('image/webp') is None
+        assert mime_to_ext('image/avif') is None
 
     def test_empty_returns_none(self) -> None:
         assert mime_to_ext('') is None

@@ -88,7 +88,7 @@ class TestExtractId3Cover:
 
     def test_unknown_mime_returns_none(self) -> None:
         tags = ID3()
-        tags.add(APIC(mime='image/webp', type=3, desc='', data=b'\x52'))
+        tags.add(APIC(mime='image/avif', type=3, desc='', data=b'\x52'))
         data, fmt = extract_id3_cover(tags)
         assert data is None
         assert fmt is None
@@ -204,7 +204,7 @@ class TestExtractFlacCover:
         assert fmt is None
 
     def test_unknown_mime_skipped(self) -> None:
-        data, fmt = extract_flac_cover([_make_picture(mime='image/webp')])
+        data, fmt = extract_flac_cover([_make_picture(mime='image/avif')])
         assert data is None
 
 
@@ -248,7 +248,7 @@ class TestDecodeOggCover:
         assert cover_bytes is None
 
     def test_unknown_mime_returns_none(self) -> None:
-        raw = _encode_picture(mime='image/webp', data=b'\x52\x49\x46\x46')
+        raw = _encode_picture(mime='image/avif', data=b'\x52\x49\x46\x46')
         cover_bytes, fmt = decode_ogg_cover([raw])
         assert cover_bytes is None
 

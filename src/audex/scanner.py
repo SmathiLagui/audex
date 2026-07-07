@@ -373,9 +373,16 @@ def _refresh(
             logger.warning('Could not record file state for {}', p)
 
     t0 = time.perf_counter()
+    albums_missing_a_track: set[int] = set()
     for p in deleted_paths:
-        repo.delete_by_path(conn, p)
+        album_id = repo.delete_by_path(conn, p)
+        if album_id is not None:
+            albums_missing_a_track.add(album_id)
     repo.write_tracks(conn, raw_list, cover_map, file_states)
+    if albums_missing_a_track:
+        # write_tracks() only recomputes is_compilation for albums touched
+        # by upserts - albums that merely lost a track need it too.
+        repo.update_compilation_flags(conn, frozenset(albums_missing_a_track))
     if deleted_paths or raw_list:
         repo.cleanup_orphans(conn)
     logger.info('DB operations in {:.2f}s', time.perf_counter() - t0)

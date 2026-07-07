@@ -29,7 +29,17 @@ def get_all_file_states(conn: sqlite3.Connection) -> dict[str, FileStateRow]:
     return {r.path: r for r in file_state_rows}
 
 
-def delete_by_path(conn: sqlite3.Connection, path: str) -> None:
+def delete_by_path(conn: sqlite3.Connection, path: str) -> int | None:
+    """Delete the file_state and track for *path*.
+
+    Returns the deleted track's former album_id (or None if there was no
+    track for this path), so the caller can recompute that album's
+    is_compilation flag now that one of its tracks is gone.
+    """
     with conn:
+        row = conn.execute(
+            'SELECT album_id FROM tracks WHERE path = ?', (path,)
+        ).fetchone()
         conn.execute('DELETE FROM file_states WHERE path = ?', (path,))
         conn.execute('DELETE FROM tracks WHERE path = ?', (path,))
+        return int(row['album_id']) if row else None

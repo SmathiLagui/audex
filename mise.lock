@@ -39,6 +39,10 @@ checksum = "sha256:ec05b628ad749682d06d225780fbc02e7bbb5ce2146c9bd8e74a3659b14b6
 url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260623/cpython-3.14.6+20260623-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
 provenance = "github-attestations"
 
+[[tools.rust]]
+version = "1.96.0"
+backend = "core:rust"
+
 [[tools.uv]]
 version = "0.11.26"
 backend = "aqua:astral-sh/uv"

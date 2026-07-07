@@ -35,11 +35,11 @@ CREATE TABLE IF NOT EXISTS covers (
 );
 
 CREATE TABLE IF NOT EXISTS albums (
-    id        INTEGER PRIMARY KEY AUTOINCREMENT,
-    title     TEXT    NOT NULL,
-    artist_id INTEGER NOT NULL REFERENCES artists(id),
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    title          TEXT    NOT NULL COLLATE NOCASE,
+    artist_id      INTEGER NOT NULL REFERENCES artists(id) ON DELETE RESTRICT,
     year           INTEGER,
-    genre_id       INTEGER NOT NULL REFERENCES genres(id),
+    genre_id       INTEGER NOT NULL REFERENCES genres(id) ON DELETE RESTRICT,
     cover_id       INTEGER REFERENCES covers(id),
     is_compilation INTEGER NOT NULL DEFAULT 0,
     UNIQUE(title, artist_id)
@@ -48,8 +48,8 @@ CREATE TABLE IF NOT EXISTS albums (
 CREATE TABLE IF NOT EXISTS tracks (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     title        TEXT,
-    artist_id    INTEGER NOT NULL REFERENCES artists(id),
-    album_id     INTEGER NOT NULL REFERENCES albums(id),
+    artist_id    INTEGER NOT NULL REFERENCES artists(id) ON DELETE RESTRICT,
+    album_id     INTEGER NOT NULL REFERENCES albums(id) ON DELETE RESTRICT,
     track_number INTEGER,
     disc_number  INTEGER,
     duration_ms  INTEGER NOT NULL,

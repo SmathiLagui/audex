@@ -1,6 +1,7 @@
 import base64
 from pathlib import Path
 
+from loguru import logger
 from mutagen import FileType, MutagenError
 from mutagen.flac import FLAC, Picture
 from mutagen.id3 import APIC, ID3, ID3NoHeaderError
@@ -20,6 +21,7 @@ from .helpers import TagReadError, mime_to_ext, parse_int, parse_year
 
 def extract_id3_cover(
     id3: ID3 | None,
+    filename: str = '',
 ) -> tuple[bytes, str] | tuple[None, None]:
     if not id3:
         return None, None
@@ -35,6 +37,7 @@ def extract_id3_cover(
     ext = mime_to_ext(apic.mime)
     if ext and apic.data:
         return apic.data, ext
+    logger.warning('Unrecognised cover MIME {!r} in {}', apic.mime, filename)
     return None, None
 
 
@@ -51,7 +54,7 @@ def map_id3_to_rawtags(
         frame = id3.get(frame_id)
         return str(frame.text[0]).strip() or None if frame else None
 
-    cover_bytes, cover_format = extract_id3_cover(id3)
+    cover_bytes, cover_format = extract_id3_cover(id3, Path(path).name)
     year = parse_year(_text('TDRC'))
 
     return RawTags(
@@ -79,6 +82,7 @@ def map_id3_to_rawtags(
 
 def extract_flac_cover(
     pictures: list[Picture],
+    filename: str = '',
 ) -> tuple[bytes | None, str | None]:
     for pic in pictures:
         if pic.type not in (3, 0):  # 3 = Front Cover, 0 = Other
@@ -86,13 +90,21 @@ def extract_flac_cover(
 
         ext = mime_to_ext(pic.mime)
         if not ext or not pic.data:
+            logger.warning(
+                'Unrecognised cover MIME {!r} in {}',
+                pic.mime,
+                filename,
+            )
             continue
 
         return pic.data, ext
     return None, None
 
 
-def decode_ogg_cover(raw_list: list[str]) -> tuple[bytes | None, str | None]:
+def decode_ogg_cover(
+    raw_list: list[str],
+    filename: str = '',
+) -> tuple[bytes | None, str | None]:
     if not raw_list:
         return None, None
     try:
@@ -101,6 +113,11 @@ def decode_ogg_cover(raw_list: list[str]) -> tuple[bytes | None, str | None]:
         ext = mime_to_ext(pic.mime)
         if ext and pic.data:
             return pic.data, ext
+        logger.warning(
+            'Unrecognised cover MIME {!r} in {}',
+            pic.mime,
+            filename,
+        )
     except Exception:
         pass
     return None, None
@@ -245,7 +262,7 @@ def _read_flac(path: Path) -> RawTags:
     audio = FLAC(str(path))
     duration_ms = int(audio.info.length * 1000)
     bitrate_kbps = audio.info.bitrate // 1000 or None
-    cover_bytes, cover_format = extract_flac_cover(audio.pictures)
+    cover_bytes, cover_format = extract_flac_cover(audio.pictures, path.name)
     return map_vorbis_to_rawtags(
         audio,
         duration_ms,
@@ -270,7 +287,8 @@ def _read_ogg_opus(path: Path) -> RawTags:
     duration_ms = int(audio.info.length * 1000)
     bitrate_kbps = audio.info.bitrate // 1000 or None
     cover_bytes, cover_format = decode_ogg_cover(
-        audio.get('metadata_block_picture') or []
+        audio.get('metadata_block_picture') or [],
+        path.name,
     )
     fmt = 'OPUS' if ext == '.opus' else 'OGG'
     return map_vorbis_to_rawtags(

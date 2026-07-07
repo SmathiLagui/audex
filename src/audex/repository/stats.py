@@ -4,18 +4,18 @@ from ..models import ExportStats
 
 
 def query_stats(conn: sqlite3.Connection) -> ExportStats:
+    # Independent COUNT(*) per table - joining through tracks would
+    # undercount e.g. a compilation's album artist ("Various Artists") when
+    # that artist never appears as an individual track's artist_id.
     row = conn.execute(
         """
         SELECT
-            COUNT(DISTINCT t.id)  AS track_count,
-            COUNT(DISTINCT a.id)  AS album_count,
-            COUNT(DISTINCT ar.id) AS artist_count,
-            COUNT(DISTINCT g.id)  AS genre_count,
-            COALESCE(SUM(t.duration_ms), 0) AS total_duration_ms
-        FROM tracks t
-        LEFT JOIN albums a   ON a.id  = t.album_id
-        LEFT JOIN artists ar ON ar.id = t.artist_id
-        LEFT JOIN genres g   ON g.id  = a.genre_id
+            (SELECT COUNT(*) FROM tracks)  AS track_count,
+            (SELECT COUNT(*) FROM albums)  AS album_count,
+            (SELECT COUNT(*) FROM artists) AS artist_count,
+            (SELECT COUNT(*) FROM genres)  AS genre_count,
+            (SELECT COALESCE(SUM(duration_ms), 0) FROM tracks)
+                AS total_duration_ms
         """
     ).fetchone()
     return ExportStats.from_db(row)

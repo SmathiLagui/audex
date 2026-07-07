@@ -2,7 +2,16 @@ from pathlib import Path
 
 import xxhash
 
-_COVER_SUFFIXES = frozenset({'.jpg', '.png'})
+COVER_MIME_TO_EXT: dict[str, str] = {
+    'jpeg': 'jpg',
+    'jpg': 'jpg',
+    'png': 'png',
+    'webp': 'webp',
+    'gif': 'gif',
+    'bmp': 'bmp',
+}
+
+_COVER_SUFFIXES = frozenset(f'.{ext}' for ext in COVER_MIME_TO_EXT.values())
 
 
 def process_cover(

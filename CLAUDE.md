@@ -12,6 +12,8 @@ A Windows-only Python library embedded in a Tauri desktop app (Angular frontend,
 
 **Tooling:** All dev tasks (lint, format, test) are run via `mise run <task>`. Never call `uv run ruff`, `uv run mypy`, `uv run pytest`, etc. directly. Discover available tasks with `mise tasks`.
 
+**Git commits:** Never add Claude (or any AI) as a commit co-author or author. Commits are authored by the user only - no `Co-Authored-By: Claude ...` trailer.
+
 **Typography:** Never use characters that are not typeable on a standard keyboard (em dash, Unicode arrows, curly quotes, etc.). Use plain ASCII equivalents: hyphen `-` for dashes, `->` for arrows. Applies to all written output: Markdown, comments, docstrings, and assistant responses.
 
 **Hard constraints:**

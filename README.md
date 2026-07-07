@@ -39,7 +39,7 @@ mise run i     # alias for: uv sync --frozen
 
 ### `scan`
 
-Index one or more music folders.
+Index a music folder.
 
 ```sh
 mise app:scan <FOLDER>
@@ -52,10 +52,24 @@ Options:
 | Flag               | Default    | Description                                         |
 | ------------------ | ---------- | --------------------------------------------------- |
 | `--force` / `-f`   | off        | Wipe the existing library and re-index from scratch |
+| `--yes` / `-y`     | off        | Skip the confirmation prompt when using `--force`   |
 | `--backend` / `-b` | `pytaglib` | Tag reading backend: `pytaglib` or `mutagen`        |
+| `--export` / `-e`  | off        | Export to JSON immediately after scan completes     |
 
 On first run, every file is read and indexed (slow - proportional to library size and disk speed).
 On subsequent runs, only changed files are re-processed using NTFS ChangeTime detection.
+
+### `stats`
+
+Display library statistics (track/album/artist/genre counts and total duration).
+
+```sh
+mise app:stats
+# or directly:
+audex stats
+```
+
+Requires a prior `scan` run.
 
 ### `export`
 
