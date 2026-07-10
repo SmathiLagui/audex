@@ -2,6 +2,22 @@ import sqlite3
 
 from ..models import AlbumQueryRow
 
+AlbumCacheEntry = tuple[int, int | None, int]  # (album_id, year, genre_id)
+AlbumCache = dict[tuple[str, int], AlbumCacheEntry]
+
+
+def preload_albums(conn: sqlite3.Connection) -> AlbumCache:
+    return {
+        (row['title'].casefold(), row['artist_id']): (
+            row['id'],
+            row['year'],
+            row['genre_id'],
+        )
+        for row in conn.execute(
+            'SELECT id, title, artist_id, year, genre_id FROM albums'
+        )
+    }
+
 
 def find_or_create_album(
     conn: sqlite3.Connection,
@@ -11,20 +27,41 @@ def find_or_create_album(
     year: int | None,
     genre_id: int,
     cover_id: int | None,
+    cache: AlbumCache,
 ) -> int:
     title = title.strip() or 'Unknown Album'
-    row = conn.execute(
-        'SELECT id FROM albums WHERE title = ? AND artist_id = ?',
-        (title, artist_id),
-    ).fetchone()
-    if row:
-        return int(row['id'])
-    cur = conn.execute(
-        'INSERT INTO albums (title, artist_id, year, genre_id, cover_id)'
-        ' VALUES (?, ?, ?, ?, ?)',
-        (title, artist_id, year, genre_id, cover_id),
-    )
-    return cur.lastrowid  # type: ignore[return-value]
+    key = (title.casefold(), artist_id)
+    cached = cache.get(key)
+    if cached is not None:
+        album_id, cached_year, cached_genre_id = cached
+        if cached_year != year or cached_genre_id != genre_id:
+            conn.execute(
+                'UPDATE albums SET year = ?, genre_id = ? WHERE id = ?',
+                (year, genre_id, album_id),
+            )
+            cache[key] = (album_id, year, genre_id)
+        return album_id
+    try:
+        cur = conn.execute(
+            'INSERT INTO albums (title, artist_id, year, genre_id, cover_id)'
+            ' VALUES (?, ?, ?, ?, ?)',
+            (title, artist_id, year, genre_id, cover_id),
+        )
+        if cur.lastrowid is None:
+            raise RuntimeError('INSERT into albums returned no rowid')
+        album_id = cur.lastrowid
+    except sqlite3.IntegrityError:
+        row = conn.execute(
+            'SELECT id FROM albums WHERE title = ? AND artist_id = ?',
+            (title, artist_id),
+        ).fetchone()
+        album_id = int(row['id'])
+        conn.execute(
+            'UPDATE albums SET year = ?, genre_id = ? WHERE id = ?',
+            (year, genre_id, album_id),
+        )
+    cache[key] = (album_id, year, genre_id)
+    return album_id
 
 
 def update_album_cover(

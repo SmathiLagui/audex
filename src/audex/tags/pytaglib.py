@@ -4,7 +4,7 @@ import taglib
 from loguru import logger
 
 from ..models import RawTags
-from .helpers import TagReadError, mime_to_ext, parse_int, parse_year
+from .helpers import TagReadError, parse_int, parse_year, resolve_cover_ext
 
 
 def read_pytaglib(path: Path) -> RawTags:
@@ -21,23 +21,25 @@ def read_pytaglib(path: Path) -> RawTags:
 
         cover_bytes: bytes | None = None
         cover_format: str | None = None
-        # Prefer Front Cover; fall back to first available picture
-        pic = next(
-            (p for p in f.pictures if p.picture_type == 'Front Cover'), None
-        )
-        if pic is None and f.pictures:
-            pic = f.pictures[0]
-        if pic is not None:
-            fmt = mime_to_ext(pic.mime_type)
-            if fmt and pic.data:
+        candidates: list[taglib.Picture] = list(f.pictures)
+        if path.suffix.lower() == '.flac':
+            # FLAC: prefer Front Cover, fall back to the rest in order.
+            front = [p for p in candidates if p.picture_type == 'Front Cover']
+            candidates = front + [p for p in candidates if p not in front]
+        # Take the first picture with a mappable MIME and non-empty data;
+        # a malformed leading picture (e.g. a bare 'image/' MIME from a
+        # legacy tagger) should not hide a usable one further in the list.
+        for pic in candidates:
+            fmt = resolve_cover_ext(pic.mime_type, pic.data)
+            if fmt:
                 cover_bytes = pic.data
                 cover_format = fmt
-            else:
-                logger.warning(
-                    'Unrecognised cover MIME {!r} in {}',
-                    pic.mime_type,
-                    path.name,
-                )
+                break
+            logger.warning(
+                'Unrecognised cover MIME {!r} in {}',
+                pic.mime_type,
+                path.name,
+            )
 
         year = parse_year(_tag('DATE'))
 

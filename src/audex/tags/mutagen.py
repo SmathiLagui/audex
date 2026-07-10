@@ -12,7 +12,7 @@ from mutagen.oggvorbis import OggVorbis
 from mutagen.wave import WAVE
 
 from ..models import RawTags
-from .helpers import TagReadError, mime_to_ext, parse_int, parse_year
+from .helpers import TagReadError, parse_int, parse_year, resolve_cover_ext
 
 # ---------------------------------------------------------------------------
 # ID3 shared mapping (MP3, WAV, AAC all carry ID3 containers)
@@ -34,7 +34,7 @@ def extract_id3_cover(
                 break
     if apic is None:
         return None, None
-    ext = mime_to_ext(apic.mime)
+    ext = resolve_cover_ext(apic.mime, apic.data)
     if ext and apic.data:
         return apic.data, ext
     logger.warning('Unrecognised cover MIME {!r} in {}', apic.mime, filename)
@@ -88,7 +88,7 @@ def extract_flac_cover(
         if pic.type not in (3, 0):  # 3 = Front Cover, 0 = Other
             continue
 
-        ext = mime_to_ext(pic.mime)
+        ext = resolve_cover_ext(pic.mime, pic.data)
         if not ext or not pic.data:
             logger.warning(
                 'Unrecognised cover MIME {!r} in {}',
@@ -110,7 +110,7 @@ def decode_ogg_cover(
     try:
         data = base64.b64decode(raw_list[0])
         pic = Picture(data)
-        ext = mime_to_ext(pic.mime)
+        ext = resolve_cover_ext(pic.mime, pic.data)
         if ext and pic.data:
             return pic.data, ext
         logger.warning(

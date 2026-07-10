@@ -2,19 +2,20 @@ from .albums import (
     find_or_create_album,
     get_album_rows,
     get_track_ids_by_album,
+    preload_albums,
     update_album_cover,
     update_compilation_flags,
 )
-from .artists import find_or_create_artist, get_all_artists
+from .artists import find_or_create_artist, get_all_artists, preload_artists
 from .cleanup import cleanup_orphans, wipe_all
-from .covers import find_or_create_cover, get_all_cover_hashes
+from .covers import find_or_create_cover, get_all_cover_hashes, preload_covers
 from .file_states import (
     count_tracked_files,
     delete_by_path,
     get_all_file_states,
     upsert_file_state,
 )
-from .genres import find_or_create_genre, get_all_genres
+from .genres import find_or_create_genre, get_all_genres, preload_genres
 from .stats import query_stats
 from .tracks import (
     count_tracks_with_art,
@@ -39,6 +40,10 @@ __all__ = [
     'get_all_genres',
     'get_all_tracks',
     'get_track_ids_by_album',
+    'preload_albums',
+    'preload_artists',
+    'preload_covers',
+    'preload_genres',
     'query_stats',
     'update_album_cover',
     'update_compilation_flags',

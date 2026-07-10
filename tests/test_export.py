@@ -114,7 +114,11 @@ class TestTrackOrdering:
         cover_bytes = b'\xff\xd8\xff' + b'\xaa' * 97
         f = _file(music_folder, 'track.mp3')
         tag_map = {
-            str(f): _tags(f, cover_bytes=cover_bytes, cover_format='jpg'),
+            str(f): _tags(
+                f,
+                cover_bytes=cover_bytes,
+                cover_format='jpg',
+            ),
         }
         _patch_io(mocker, tag_map)
         scan_folder(music_folder, db, covers_dir, progress)

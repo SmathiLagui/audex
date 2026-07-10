@@ -69,16 +69,19 @@ class TestCompilationDetection:
         music_folder: Path,
         progress: MagicMock,
         mocker: MockerFixture,
-        tmp_path: Path,
     ) -> None:
         f1 = _file(music_folder, 'a.mp3')
         f2 = _file(music_folder, 'b.mp3')
         tag_map = {
             str(f1): _tags(
-                f1, track_artist='Artist A', album_artist='Artist A'
+                f1,
+                track_artist='Artist A',
+                album_artist='Artist A',
             ),
             str(f2): _tags(
-                f2, track_artist='Artist A', album_artist='Artist A'
+                f2,
+                track_artist='Artist A',
+                album_artist='Artist A',
             ),
         }
         _patch_io(mocker, tag_map)
@@ -94,16 +97,19 @@ class TestCompilationDetection:
         music_folder: Path,
         progress: MagicMock,
         mocker: MockerFixture,
-        tmp_path: Path,
     ) -> None:
         f1 = _file(music_folder, 'a.mp3')
         f2 = _file(music_folder, 'b.mp3')
         tag_map = {
             str(f1): _tags(
-                f1, track_artist='Artist A', album_artist='Various Artists'
+                f1,
+                track_artist='Artist A',
+                album_artist='Various Artists',
             ),
             str(f2): _tags(
-                f2, track_artist='Artist B', album_artist='Various Artists'
+                f2,
+                track_artist='Artist B',
+                album_artist='Various Artists',
             ),
         }
         _patch_io(mocker, tag_map)
@@ -125,10 +131,14 @@ class TestCompilationDetection:
         f2 = _file(music_folder, 'b.mp3')
         tag_map = {
             str(f1): _tags(
-                f1, track_artist='Artist A', album_artist='Various Artists'
+                f1,
+                track_artist='Artist A',
+                album_artist='Various Artists',
             ),
             str(f2): _tags(
-                f2, track_artist='Artist B', album_artist='Various Artists'
+                f2,
+                track_artist='Artist B',
+                album_artist='Various Artists',
             ),
         }
         _patch_io(mocker, tag_map)
@@ -228,10 +238,16 @@ class TestExportStats:
         f2 = _file(music_folder, 'b.mp3')
         tag_map = {
             str(f1): _tags(
-                f1, album_title='Album A', genre='Rock', duration_ms=200_000
+                f1,
+                album_title='Album A',
+                genre='Rock',
+                duration_ms=200_000,
             ),
             str(f2): _tags(
-                f2, album_title='Album B', genre='Jazz', duration_ms=100_000
+                f2,
+                album_title='Album B',
+                genre='Jazz',
+                duration_ms=100_000,
             ),
         }
         _patch_io(mocker, tag_map)

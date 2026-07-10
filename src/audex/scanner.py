@@ -348,8 +348,11 @@ def _refresh(
         logger.info('No files need tag re-reading - all up to date')
 
     # Count only files that were successfully read, not merely attempted
-    stats.updated_files = (
-        len(size_changed) + len(change_time_changed) - stats.errors
+    read_ok_paths = {raw.path for raw in raw_list}
+    stats.updated_files = sum(
+        1
+        for p in set(size_changed).union(change_time_changed)
+        if p in read_ok_paths
     )
 
     t0 = time.perf_counter()
@@ -387,7 +390,7 @@ def _refresh(
         repo.cleanup_orphans(conn)
     logger.info('DB operations in {:.2f}s', time.perf_counter() - t0)
 
-    stats.new_files = len(new_paths)
+    stats.new_files = sum(1 for p in new_paths if p in read_ok_paths)
 
     if deleted_paths or raw_list:
         known_hashes = repo.get_all_cover_hashes(conn)

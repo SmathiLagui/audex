@@ -444,7 +444,7 @@ Bitrate: `bitrate_kbps` is `None` for WAV (uncompressed, no meaningful lossy bit
 ## Cover processing
 
 1. Extract raw bytes + MIME type from the tag (rules below).
-2. Determine extension from MIME type using the shared MIME-to-extension table defined in the Constants section. Any MIME type not in that table is ignored and the track is treated as having no cover.
+2. Determine extension from MIME type using the shared MIME-to-extension table defined in the Constants section. If the declared MIME does not map to a known extension, sniff the actual format from the image data's magic bytes (via the `filetype` library) before giving up, then map *that* detected MIME through the same table. Some taggers write a malformed or bogus MIME string (observed in the wild: `image/2`, `image/` with no subtype, empty string) while the embedded image data itself is intact - trusting the declared MIME alone drops real covers unnecessarily. A format `filetype` detects but that isn't in the MIME-to-extension table (e.g. tiff, heic) is still rejected, same as an unrecognised declared MIME. Only if neither the declared MIME nor the sniffed format resolve to a known extension is the picture ignored and the track treated as having no cover (for that candidate - see the fallback-through-invalid-candidates rule below).
 3. Compute `xxh3_128(bytes)` -> hex string (`content_hash`).
 4. Write to `covers/{content_hash}.{ext}` if not already present (content-addressed, idempotent).
 5. Store `(content_hash, ext)` in the `covers` table; record the row ID as `cover_id` on the album.
@@ -455,6 +455,8 @@ Two albums with identical artwork share one file on disk. Cover files are never 
 
 These rules are what the Python implementation (pytaglib backend) does. The Rust port must replicate them exactly - deviations are the reason for cover count mismatches.
 
+**pytaglib fallback-through-invalid-candidates rule (all formats):** pytaglib reads every container through TagLib's unified `pictures` list, so in practice all formats below share one algorithm: build an ordered candidate list per the per-format rule (FLAC puts any `Front Cover`-typed picture(s) first, then the rest in their original order; other formats keep natural order), then walk the candidates in order and take the **first one whose MIME maps to `jpg`/`png` AND whose data is non-empty**. A candidate that fails validation (e.g. a malformed MIME like `image/` with no subtype, seen in the wild from some legacy taggers) is skipped rather than treated as "no cover" - the next candidate in the list is tried instead. Only when every candidate fails validation, or there are no pictures at all, does the track have no cover. This matters for real files with multiple embedded pictures where the first one is corrupt/malformed but a later one is valid.
+
 #### MP3 / WAV / AAC (ID3 container)
 
 ID3 stores covers as `APIC` frames. The frame key is `APIC:<description>`, where description is a free-text string, most commonly empty. The lookup must try all three variants in order:
@@ -463,7 +465,7 @@ ID3 stores covers as `APIC` frames. The frame key is `APIC:<description>`, where
 2. `APIC` (key without colon, produced by some editors)
 3. Scan all frame keys that start with `APIC` and take the first match (catches `APIC:Cover`, `APIC:Front`, etc.)
 
-Take the first frame found. No picture-type preference for ID3 - there is no reliable type field to filter on. Validate: MIME must map to `jpg`/`png` AND data must be non-empty; otherwise no cover.
+No picture-type preference for ID3 - there is no reliable type field to filter on. Candidate order is frame-list order; validation and fallback follow the pytaglib rule above.
 
 #### FLAC (PICTURE blocks)
 
@@ -471,23 +473,22 @@ The two backends deliberately differ here, and both behaviours must be preserved
 
 **pytaglib** (via TagLib's unified `pictures` list, `picture_type` as a string):
 
-1. Pick the picture where `picture_type == 'Front Cover'`.
-2. If none, pick `pictures[0]` (the first picture, any type).
-3. Validate MIME (must map to `jpg`/`png`) and data (non-empty) as above; otherwise no cover.
+1. Candidate order: pictures where `picture_type == 'Front Cover'` first, then the rest in original order.
+2. Validate MIME (must map to `jpg`/`png`) and data (non-empty) per the fallback rule above; the first candidate to pass wins.
 
 **mutagen** (via FLAC's raw Picture blocks, `type` as a numeric field - 3 = Front Cover, 0 = Other):
 
 Iterate the picture list and take the first entry whose type is 3 or 0, whose MIME maps to `jpg`/`png`, and whose data is non-empty. Skip entries with any other type entirely. If no entry passes the filter, the track has no cover - mutagen does **not** fall back to an arbitrary first picture the way pytaglib does.
 
-A Rust port that only implements one backend should replicate pytaglib's two-step fallback, since that is the default and the reference for cover counts. Filtering to only types 3 and 0 with no fallback (the mutagen rule) would cause misses on files that have art tagged with a different type.
+A Rust port that only implements one backend should replicate pytaglib's fallback behaviour, since that is the default and the reference for cover counts. Filtering to only types 3 and 0 with no fallback (the mutagen rule) would cause misses on files that have art tagged with a different type.
 
 #### M4A (MP4 `covr` atom)
 
-Take `covr[0]` (the first cover atom). Accept only `FORMAT_JPEG` or `FORMAT_PNG` image formats; skip any other format. Data must be non-empty. M4A is limited to these two types by the MP4 spec - the extended MIME table above does not apply here.
+Candidate order is `covr[]` atom order. Accept only `FORMAT_JPEG` or `FORMAT_PNG` image formats; validation and fallback-to-next-candidate follow the pytaglib rule above. M4A is limited to these two types by the MP4 spec - the extended MIME table above does not apply here.
 
 #### OGG / Opus (Vorbis comment `METADATA_BLOCK_PICTURE`)
 
-The picture is stored as a Vorbis comment tag `METADATA_BLOCK_PICTURE` containing a single base64-encoded FLAC Picture structure. Take only the first value in that tag list, base64-decode it, parse as a FLAC Picture, then validate MIME and data. No picture-type filtering.
+The picture(s) are stored as a Vorbis comment tag `METADATA_BLOCK_PICTURE`, each value a base64-encoded FLAC Picture structure. Candidate order is tag-value order; base64-decode each, parse as a FLAC Picture, then validate MIME and data per the pytaglib rule above. No picture-type filtering.
 
 ### Cover assignment
 
@@ -528,6 +529,11 @@ for each batch of 500 paths:
     open transaction:
         for each track:
             find-or-create genre, artists, cover
+            find-or-create album
+                -> if the (title, artist_id) row already exists, its
+                   year and genre_id are overwritten from the freshly
+                   read tags, so a tag edit to an already-indexed album
+                   is reflected without a separate update path
             upsert track
             accumulate album_best_cover
         for each touched album:
@@ -738,14 +744,15 @@ No log entries specific to this command. The initial `Run: {argv}` INFO line fro
 
 ## Recommended Rust crates
 
-| Concern          | Crate                               |
-| ---------------- | ----------------------------------- |
-| SQLite           | `rusqlite` (with `bundled` feature) |
-| Audio tags       | `lofty`                             |
-| JSON             | `serde` + `serde_json`              |
-| xxHash (xxh3)    | `xxhash-rust`                       |
-| Windows API      | `windows` crate                     |
-| CLI              | `clap`                              |
-| Progress display | `indicatif`                         |
-| Logging          | `tracing` + `tracing-subscriber`    |
-| Error handling   | `anyhow`                            |
+| Concern               | Crate                                                  |
+| --------------------- | ------------------------------------------------------ |
+| SQLite                | `rusqlite` (with `bundled` feature)                    |
+| Audio tags            | `lofty`                                                |
+| Image format sniffing | `infer` (same author/API shape as Python's `filetype`) |
+| JSON                  | `serde` + `serde_json`                                 |
+| xxHash (xxh3)         | `xxhash-rust`                                          |
+| Windows API           | `windows` crate                                        |
+| CLI                   | `clap`                                                 |
+| Progress display      | `indicatif`                                            |
+| Logging               | `tracing` + `tracing-subscriber`                       |
+| Error handling        | `anyhow`                                               |

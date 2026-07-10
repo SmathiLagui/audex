@@ -164,7 +164,11 @@ class TestMapId3ToRawTags:
 
     def test_path_and_duration_preserved(self) -> None:
         result = map_id3_to_rawtags(
-            None, 300_000, '/some/file.mp3', 'MP3', 128
+            None,
+            300_000,
+            '/some/file.mp3',
+            'MP3',
+            128,
         )
         assert result.path == '/some/file.mp3'
         assert result.duration_ms == 300_000
@@ -182,7 +186,7 @@ class TestExtractFlacCover:
         assert data == b'\xff\xd8\xff\xaa'
 
     def test_other_type_fallback(self) -> None:
-        data, fmt = extract_flac_cover([_make_picture(type_=0)])
+        _, fmt = extract_flac_cover([_make_picture(type_=0)])
         assert fmt == 'jpg'
 
     def test_non_cover_type_skipped(self) -> None:
@@ -204,8 +208,31 @@ class TestExtractFlacCover:
         assert fmt is None
 
     def test_unknown_mime_skipped(self) -> None:
-        data, fmt = extract_flac_cover([_make_picture(mime='image/avif')])
+        # Data has no recognisable magic bytes either, so sniffing can't
+        # rescue this one - it must stay unrecognised.
+        data, _ = extract_flac_cover(
+            [
+                _make_picture(
+                    mime='image/avif',
+                    data=b'\x00\x00\x00\x00',
+                )
+            ]
+        )
         assert data is None
+
+    def test_malformed_mime_recovered_by_sniffing(self) -> None:
+        # Bogus MIME string but genuine JPEG magic bytes - some taggers
+        # write garbage MIME while the image data itself is intact.
+        data, fmt = extract_flac_cover(
+            [
+                _make_picture(
+                    mime='image/2',
+                    data=b'\xff\xd8\xff\xaa',
+                )
+            ]
+        )
+        assert data == b'\xff\xd8\xff\xaa'
+        assert fmt == 'jpg'
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +262,7 @@ class TestDecodeOggCover:
 
     def test_valid_png_picture(self) -> None:
         raw = _encode_picture(mime='image/png', data=b'\x89PNG')
-        cover_bytes, fmt = decode_ogg_cover([raw])
+        _, fmt = decode_ogg_cover([raw])
         assert fmt == 'png'
 
     def test_invalid_base64_returns_none(self) -> None:
@@ -244,12 +271,12 @@ class TestDecodeOggCover:
         assert fmt is None
 
     def test_empty_list_returns_none(self) -> None:
-        cover_bytes, fmt = decode_ogg_cover([])
+        cover_bytes, _ = decode_ogg_cover([])
         assert cover_bytes is None
 
     def test_unknown_mime_returns_none(self) -> None:
         raw = _encode_picture(mime='image/avif', data=b'\x52\x49\x46\x46')
-        cover_bytes, fmt = decode_ogg_cover([raw])
+        cover_bytes, _ = decode_ogg_cover([raw])
         assert cover_bytes is None
 
 
@@ -355,7 +382,8 @@ class TestMapM4aToRawTags:
 
     @pytest.mark.parametrize('zero_tuple', [[(0, 12)]])
     def test_track_number_zero_returns_none(
-        self, zero_tuple: list[object]
+        self,
+        zero_tuple: list[object],
     ) -> None:
         # (0, total) means "unset" in M4A - should map to None
         tags = {'trkn': zero_tuple}

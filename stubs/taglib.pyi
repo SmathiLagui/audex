@@ -5,7 +5,10 @@ from typing import Self
 class Picture:
     picture_type: str
     mime_type: str
-    data: bytes
+    # Typed as bytes by the real taglib.cp*.pyd binding, but it's a
+    # compiled C extension we don't control - don't trust that promise
+    # at runtime, treat it as possibly None.
+    data: bytes | None
 
 class File:
     tags: dict[str, list[str]]

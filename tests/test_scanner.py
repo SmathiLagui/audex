@@ -130,7 +130,7 @@ class TestFirstScan:
     ) -> None:
         f1 = _file(music_folder, 'a.mp3')
         f2 = _file(music_folder, 'b.mp3')
-        ct_map, tag_map = _patch_io(mocker)
+        _, tag_map = _patch_io(mocker)
         tag_map[str(f1)] = _tags(f1, album_title='Album A')
         tag_map[str(f2)] = _tags(f2, album_title='Album B')
 
@@ -294,11 +294,13 @@ class TestRefreshUpdated:
         scan_folder(music_folder, db, covers_dir, progress)
 
         album_id = db.execute(
-            'SELECT album_id FROM tracks WHERE path = ?', (str(f),)
+            'SELECT album_id FROM tracks WHERE path = ?',
+            (str(f),),
         ).fetchone()['album_id']
         assert (
             db.execute(
-                'SELECT cover_id FROM albums WHERE id = ?', (album_id,)
+                'SELECT cover_id FROM albums WHERE id = ?',
+                (album_id,),
             ).fetchone()['cover_id']
             is None
         )
@@ -310,7 +312,8 @@ class TestRefreshUpdated:
         scan_folder(music_folder, db, covers_dir, progress)
 
         cover_id = db.execute(
-            'SELECT cover_id FROM albums WHERE id = ?', (album_id,)
+            'SELECT cover_id FROM albums WHERE id = ?',
+            (album_id,),
         ).fetchone()['cover_id']
         assert cover_id is not None
         assert len(list(covers_dir.glob('*.jpg'))) == 1
@@ -330,10 +333,12 @@ class TestRefreshUpdated:
         scan_folder(music_folder, db, covers_dir, progress)
 
         album_id = db.execute(
-            'SELECT album_id FROM tracks WHERE path = ?', (str(f),)
+            'SELECT album_id FROM tracks WHERE path = ?',
+            (str(f),),
         ).fetchone()['album_id']
         old_cover_id = db.execute(
-            'SELECT cover_id FROM albums WHERE id = ?', (album_id,)
+            'SELECT cover_id FROM albums WHERE id = ?',
+            (album_id,),
         ).fetchone()['cover_id']
 
         ct_map[str(f)] = CT2
@@ -342,7 +347,8 @@ class TestRefreshUpdated:
         scan_folder(music_folder, db, covers_dir, progress)
 
         new_cover_id = db.execute(
-            'SELECT cover_id FROM albums WHERE id = ?', (album_id,)
+            'SELECT cover_id FROM albums WHERE id = ?',
+            (album_id,),
         ).fetchone()['cover_id']
         assert new_cover_id != old_cover_id
         # Old cover file deleted; only the new one remains
@@ -372,11 +378,13 @@ class TestRefreshUpdated:
         scan_folder(music_folder, db, covers_dir, progress)
 
         album_id = db.execute(
-            'SELECT album_id FROM tracks WHERE path = ?', (str(f1),)
+            'SELECT album_id FROM tracks WHERE path = ?',
+            (str(f1),),
         ).fetchone()['album_id']
         assert (
             db.execute(
-                'SELECT cover_id FROM albums WHERE id = ?', (album_id,)
+                'SELECT cover_id FROM albums WHERE id = ?',
+                (album_id,),
             ).fetchone()['cover_id']
             is not None
         )
@@ -399,11 +407,13 @@ class TestRefreshUpdated:
         scan_folder(music_folder, db, covers_dir, progress)
 
         album_id = db.execute(
-            'SELECT album_id FROM tracks WHERE path = ?', (str(f),)
+            'SELECT album_id FROM tracks WHERE path = ?',
+            (str(f),),
         ).fetchone()['album_id']
         assert (
             db.execute(
-                'SELECT cover_id FROM albums WHERE id = ?', (album_id,)
+                'SELECT cover_id FROM albums WHERE id = ?',
+                (album_id,),
             ).fetchone()['cover_id']
             is not None
         )
@@ -417,7 +427,8 @@ class TestRefreshUpdated:
 
         assert (
             db.execute(
-                'SELECT cover_id FROM albums WHERE id = ?', (album_id,)
+                'SELECT cover_id FROM albums WHERE id = ?',
+                (album_id,),
             ).fetchone()['cover_id']
             is None
         )
@@ -484,11 +495,13 @@ class TestRefreshUpdated:
         scan_folder(music_folder, db, covers_dir, progress)
 
         album_id = db.execute(
-            'SELECT album_id FROM tracks WHERE path = ?', (str(f1),)
+            'SELECT album_id FROM tracks WHERE path = ?',
+            (str(f1),),
         ).fetchone()['album_id']
         assert (
             db.execute(
-                'SELECT cover_id FROM albums WHERE id = ?', (album_id,)
+                'SELECT cover_id FROM albums WHERE id = ?',
+                (album_id,),
             ).fetchone()['cover_id']
             is not None
         ), 'cover should still exist after removing art from only one track'
@@ -500,7 +513,8 @@ class TestRefreshUpdated:
 
         assert (
             db.execute(
-                'SELECT cover_id FROM albums WHERE id = ?', (album_id,)
+                'SELECT cover_id FROM albums WHERE id = ?',
+                (album_id,),
             ).fetchone()['cover_id']
             is None
         )
@@ -547,7 +561,7 @@ class TestRefreshDeleted:
         associated artist and genre."""
         f1 = _file(music_folder, 'track1.mp3')
         f2 = _file(music_folder, 'track2.mp3')
-        ct_map, tag_map = _patch_io(mocker)
+        _, tag_map = _patch_io(mocker)
         tag_map[str(f1)] = _tags(
             f1,
             album_title='Album A',
@@ -680,7 +694,9 @@ class TestErrorHandling:
         good = _file(music_folder, 'good.mp3')
         _file(music_folder, 'bad.mp3')
         mocker.patch.object(
-            _scanner_mod, 'get_change_time_ns', return_value=CT1
+            _scanner_mod,
+            'get_change_time_ns',
+            return_value=CT1,
         )
         mocker.patch.object(
             _tags_mod,
@@ -708,7 +724,7 @@ class TestErrorHandling:
     ) -> None:
         """If ChangeTime cannot be read, the file is conservatively re-read."""
         f = _file(music_folder, 'track.mp3')
-        ct_map, tag_map = _patch_io(mocker)
+        _, tag_map = _patch_io(mocker)
 
         scan_folder(music_folder, db, covers_dir, progress)
 

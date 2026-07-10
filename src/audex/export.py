@@ -102,7 +102,11 @@ def _assemble_albums(
         cover_str: str | None = None
         if r.content_hash and r.extension:
             cover_str = str(
-                cover_path(covers_dir, r.content_hash, r.extension)
+                cover_path(
+                    covers_dir,
+                    r.content_hash,
+                    r.extension,
+                )
             )
 
         albums.append(

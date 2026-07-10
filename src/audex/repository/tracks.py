@@ -6,13 +6,14 @@ from loguru import logger
 from ..models import ExportTrack, FileStateRow, RawTags
 from .albums import (
     find_or_create_album,
+    preload_albums,
     update_album_cover,
     update_compilation_flags,
 )
-from .artists import find_or_create_artist
-from .covers import find_or_create_cover
+from .artists import find_or_create_artist, preload_artists
+from .covers import find_or_create_cover, preload_covers
 from .file_states import upsert_file_state
-from .genres import find_or_create_genre
+from .genres import find_or_create_genre, preload_genres
 
 
 def upsert_track(
@@ -80,23 +81,38 @@ def write_tracks(
     with conn:
         written = 0
         album_best_cover: dict[int, int | None] = {}
+        genre_cache = preload_genres(conn)
+        artist_cache = preload_artists(conn)
+        cover_cache = preload_covers(conn)
+        album_cache = preload_albums(conn)
 
         for raw in raw_list:
             try:
-                genre_id = find_or_create_genre(conn, raw.genre or 'Unknown')
+                genre_id = find_or_create_genre(
+                    conn,
+                    raw.genre or 'Unknown',
+                    genre_cache,
+                )
                 track_artist_id = find_or_create_artist(
                     conn,
                     raw.track_artist or 'Unknown Artist',
+                    artist_cache,
                 )
                 album_artist_id = find_or_create_artist(
                     conn,
                     raw.album_artist or raw.track_artist or 'Unknown Artist',
+                    artist_cache,
                 )
 
                 cover_id: int | None = None
                 if raw.path in cover_map:
                     content_hash, ext = cover_map[raw.path]
-                    cover_id = find_or_create_cover(conn, content_hash, ext)
+                    cover_id = find_or_create_cover(
+                        conn,
+                        content_hash,
+                        ext,
+                        cover_cache,
+                    )
                     logger.debug(
                         'Cover resolved: cover_id={} for {}',
                         cover_id,
@@ -110,6 +126,7 @@ def write_tracks(
                     year=raw.year,
                     genre_id=genre_id,
                     cover_id=cover_id,
+                    cache=album_cache,
                 )
                 upsert_track(
                     conn,
