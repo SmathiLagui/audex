@@ -7,9 +7,9 @@ mocking it away.
 """
 
 import os
+import sys
 import time
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from pytest_mock import MockerFixture
@@ -97,8 +97,8 @@ class TestScanCommand:
         _file(music_folder, 'track.mp3')
         _patch_io(mocker)
 
-        with patch('sys.platform', 'win32'):
-            result = runner.invoke(main_mod.app, ['scan', str(music_folder)])
+        mocker.patch.object(sys, 'platform', 'win32')
+        result = runner.invoke(main_mod.app, ['scan', str(music_folder)])
 
         assert result.exit_code == 0
         assert 'Scan complete' in result.output
@@ -117,11 +117,11 @@ class TestScanCommand:
         _file(music_folder, 'track.mp3')
         _patch_io(mocker)
 
-        with patch('sys.platform', 'win32'):
-            result = runner.invoke(
-                main_mod.app,
-                ['scan', str(music_folder), '--export'],
-            )
+        mocker.patch.object(sys, 'platform', 'win32')
+        result = runner.invoke(
+            main_mod.app,
+            ['scan', str(music_folder), '--export'],
+        )
 
         assert result.exit_code == 0
         assert _wired_paths['export_path'].exists()
@@ -138,12 +138,12 @@ class TestScanCommand:
         _patch_io(mocker)
 
         # First index
-        with patch('sys.platform', 'win32'):
-            runner.invoke(main_mod.app, ['scan', str(music_folder)])
-            result = runner.invoke(
-                main_mod.app,
-                ['scan', str(music_folder), '--force', '--yes'],
-            )
+        mocker.patch.object(sys, 'platform', 'win32')
+        runner.invoke(main_mod.app, ['scan', str(music_folder)])
+        result = runner.invoke(
+            main_mod.app,
+            ['scan', str(music_folder), '--force', '--yes'],
+        )
 
         assert result.exit_code == 0
 
@@ -158,13 +158,13 @@ class TestScanCommand:
         _file(music_folder, 'track.mp3')
         _patch_io(mocker)
 
-        with patch('sys.platform', 'win32'):
-            runner.invoke(main_mod.app, ['scan', str(music_folder)])
-            result = runner.invoke(
-                main_mod.app,
-                ['scan', str(music_folder), '--force'],
-                input='y\n',
-            )
+        mocker.patch.object(sys, 'platform', 'win32')
+        runner.invoke(main_mod.app, ['scan', str(music_folder)])
+        result = runner.invoke(
+            main_mod.app,
+            ['scan', str(music_folder), '--force'],
+            input='y\n',
+        )
 
         assert result.exit_code == 0
 
@@ -179,13 +179,13 @@ class TestScanCommand:
         _file(music_folder, 'track.mp3')
         _patch_io(mocker)
 
-        with patch('sys.platform', 'win32'):
-            runner.invoke(main_mod.app, ['scan', str(music_folder)])
-            result = runner.invoke(
-                main_mod.app,
-                ['scan', str(music_folder), '--force'],
-                input='n\n',
-            )
+        mocker.patch.object(sys, 'platform', 'win32')
+        runner.invoke(main_mod.app, ['scan', str(music_folder)])
+        result = runner.invoke(
+            main_mod.app,
+            ['scan', str(music_folder), '--force'],
+            input='n\n',
+        )
 
         assert result.exit_code != 0
 
@@ -204,8 +204,8 @@ class TestScanCommand:
             side_effect=NotImplementedError('backend not implemented'),
         )
 
-        with patch('sys.platform', 'win32'):
-            result = runner.invoke(main_mod.app, ['scan', str(music_folder)])
+        mocker.patch.object(sys, 'platform', 'win32')
+        result = runner.invoke(main_mod.app, ['scan', str(music_folder)])
 
         assert result.exit_code != 0
         assert 'Error' in result.output
@@ -228,8 +228,8 @@ class TestStatsCommand:
         _file(music_folder, 'track.mp3')
         _patch_io(mocker)
 
-        with patch('sys.platform', 'win32'):
-            runner.invoke(main_mod.app, ['scan', str(music_folder)])
+        mocker.patch.object(sys, 'platform', 'win32')
+        runner.invoke(main_mod.app, ['scan', str(music_folder)])
 
         result = runner.invoke(main_mod.app, ['stats'])
 
@@ -255,8 +255,8 @@ class TestExportCommand:
         _file(music_folder, 'track.mp3')
         _patch_io(mocker)
 
-        with patch('sys.platform', 'win32'):
-            runner.invoke(main_mod.app, ['scan', str(music_folder)])
+        mocker.patch.object(sys, 'platform', 'win32')
+        runner.invoke(main_mod.app, ['scan', str(music_folder)])
 
         result = runner.invoke(main_mod.app, ['export'])
 

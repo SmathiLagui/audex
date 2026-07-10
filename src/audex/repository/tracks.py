@@ -162,24 +162,25 @@ def write_tracks(
                     album_id,
                     best_cover,
                 )
-            else:
-                # Query DB (reflecting all upserted tracks) to check if any
-                # unchanged track in this album still has embedded art.
-                tracks_with_art = count_tracks_with_art(conn, album_id)
-                if tracks_with_art == 0:
-                    update_album_cover(conn, album_id, None)
-                    logger.debug(
-                        'Album cover cleared: album_id={}'
-                        ' (no track has embedded art)',
-                        album_id,
-                    )
-                else:
-                    logger.debug(
-                        'Album cover kept: album_id={}'
-                        ' ({} track(s) still have embedded art)',
-                        album_id,
-                        tracks_with_art,
-                    )
+                continue
+
+            # Query DB (reflecting all upserted tracks) to check if any
+            # unchanged track in this album still has embedded art.
+            tracks_with_art = count_tracks_with_art(conn, album_id)
+            if tracks_with_art > 0:
+                logger.debug(
+                    'Album cover kept: album_id={}'
+                    ' ({} track(s) still have embedded art)',
+                    album_id,
+                    tracks_with_art,
+                )
+                continue
+
+            update_album_cover(conn, album_id, None)
+            logger.debug(
+                'Album cover cleared: album_id={} (no track has embedded art)',
+                album_id,
+            )
 
         update_compilation_flags(conn, frozenset(album_best_cover))
 

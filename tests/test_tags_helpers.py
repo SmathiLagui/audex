@@ -7,10 +7,11 @@ format-agnostic helpers that contain non-trivial logic.
 """
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
+from pytest_mock import MockerFixture
 
+import audex.tags as tags_mod
 from audex.tags import TagBackend, is_audio_file, read_tags
 from audex.tags.helpers import TagReadError, mime_to_ext, parse_int
 
@@ -90,27 +91,34 @@ class TestIsAudioFile:
 
 
 class TestReadTagsWrapper:
-    def test_returns_none_on_exception(self, tmp_path: Path) -> None:
+    def test_returns_none_on_exception(
+        self, tmp_path: Path, mocker: MockerFixture
+    ) -> None:
         """Backend failures must be caught and return None, not raise."""
         f = tmp_path / 'bad.mp3'
         f.write_bytes(b'\x00' * 10)
 
-        with patch(
-            'audex.tags.read_pytaglib',
+        mocker.patch.object(
+            tags_mod,
+            'read_pytaglib',
             side_effect=TagReadError('bad'),
-        ):
-            result = read_tags(f, TagBackend.PyTagLib)
+        )
+        result = read_tags(f, TagBackend.PyTagLib)
 
         assert result is None
 
-    def test_mutagen_backend_dispatched(self, tmp_path: Path) -> None:
+    def test_mutagen_backend_dispatched(
+        self, tmp_path: Path, mocker: MockerFixture
+    ) -> None:
         """Mutagen backend must call read_mutagen, not read_pytaglib."""
         f = tmp_path / 'track.mp3'
         f.write_bytes(b'\x00' * 10)
 
-        with (
-            patch('audex.tags.read_mutagen', side_effect=TagReadError) as m,
-            patch('audex.tags.read_pytaglib', side_effect=AssertionError),
-        ):
-            read_tags(f, TagBackend.Mutagen)
-            m.assert_called_once()
+        m = mocker.patch.object(
+            tags_mod, 'read_mutagen', side_effect=TagReadError
+        )
+        mocker.patch.object(
+            tags_mod, 'read_pytaglib', side_effect=AssertionError
+        )
+        read_tags(f, TagBackend.Mutagen)
+        m.assert_called_once()

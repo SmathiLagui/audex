@@ -135,16 +135,15 @@ def scan(
     with open_connection(db_path) as conn:
         create_schema(conn)
 
-        if force and not yes:
-            count = repo.count_tracked_files(conn)
-            if count > 0:
-                confirmed = typer.confirm(
-                    'This will wipe the existing library'
-                    f' ({count} tracked file(s)). Continue?',
-                )
-                if not confirmed:
-                    logger.info('Force re-index aborted by user')
-                    raise typer.Abort()
+        tracked_count = repo.count_tracked_files(conn)
+        if force and not yes and tracked_count > 0:
+            confirmed = typer.confirm(
+                'This will wipe the existing library'
+                f' ({tracked_count} tracked file(s)). Continue?',
+            )
+            if not confirmed:
+                logger.info('Force re-index aborted by user')
+                raise typer.Abort()
 
         try:
             with Progress(

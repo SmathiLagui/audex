@@ -558,7 +558,7 @@ walk folder           -> on_disk: Map<path, size>
 new_paths     = on_disk.keys() - known.keys()
 deleted_paths = known.keys() - on_disk.keys()
 
-for path in (on_disk.keys() ∩ known.keys()):
+for path in on_disk.keys().intersection(known.keys()):
     if on_disk[path].size != known[path].size_bytes:
         size_changed.push(path)
     else:
@@ -739,20 +739,3 @@ days, else `Xd XXh XXm XXs` once it exceeds 24 hours, else `Xh XXm XXs`, else
 months, 12-month years), not calendar-accurate ones.
 
 No log entries specific to this command. The initial `Run: {argv}` INFO line from `main` still fires.
-
----
-
-## Recommended Rust crates
-
-| Concern               | Crate                                                  |
-| --------------------- | ------------------------------------------------------ |
-| SQLite                | `rusqlite` (with `bundled` feature)                    |
-| Audio tags            | `lofty`                                                |
-| Image format sniffing | `infer` (same author/API shape as Python's `filetype`) |
-| JSON                  | `serde` + `serde_json`                                 |
-| xxHash (xxh3)         | `xxhash-rust`                                          |
-| Windows API           | `windows` crate                                        |
-| CLI                   | `clap`                                                 |
-| Progress display      | `indicatif`                                            |
-| Logging               | `tracing` + `tracing-subscriber`                       |
-| Error handling        | `anyhow`                                               |
